@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import axios from "axios";
 import { getWebviewContent } from "./generateWebView";
-import { parseSuggestions, parseAIResponse } from "./utils/parsingFunctions";
+import { parseSuggestions, parseAIResponse, cleanCodeBlock } from "./utils/parsingFunctions";
 import {applyChangesToEditor, applySuggestionsAsComments}  from './utils/ApplyFunctions';	
 
 
@@ -84,19 +84,42 @@ export function activate(context: vscode.ExtensionContext) {
           type: 'showPlan',
           plan: response.plan,
           originalCode: currentCode,
-          newCode: response.newCode,
           explanation: response.explanation
         });
 
         // Step 8: Handle webview messages
+        let latestGeneratedCode: string = '';
         panel.webview.onDidReceiveMessage(
           async (message) => {
             switch (message.type) {
               case 'executePlan':
-                await executeCodeGeneration(panel, response);
+                panel.webview.postMessage({
+                  type: 'updateStatus',
+                  message: 'Generating code based on the plan...'
+                });
+                try {
+                  const implementation = await callGeminiForImplementation(apiKey, currentCode, userPrompt, fileName, response.plan);
+                  const cleaned = cleanCodeBlock(implementation.newCode || '');
+                  latestGeneratedCode = cleaned;
+                  panel.webview.postMessage({
+                    type: 'showGeneratedCode',
+                    originalCode: currentCode,
+                    newCode: cleaned
+                  });
+                  panel.webview.postMessage({
+                    type: 'executionComplete'
+                  });
+                } catch (implErr: any) {
+                  console.log(implErr);
+                  vscode.window.showErrorMessage("Error generating implementation: " + implErr.message);
+                }
                 break;
               case 'applyChanges':
-                await applyChangesToEditor(editor, response.newCode);
+                if (!latestGeneratedCode) {
+                  vscode.window.showErrorMessage('No generated code to apply yet. Execute the plan first.');
+                  return;
+                }
+                await applyChangesToEditor(editor, latestGeneratedCode);
                 panel.dispose();
                 break;
               case 'cancel':
@@ -131,13 +154,15 @@ async function callGeminiForPlanning(apiKey: string, currentCode: string, userPr
           role: "user",
           parts: [
             {
-              text: `You are an AI code assistant. The user wants to: "${userPrompt}"
+              text: `You are an AI code assistant. The user wants to achieve: "${userPrompt}"
 
 File: ${fileName}
 Current Code:
 ${currentCode}
 
-Please respond with a structured plan and implementation in this exact format:
+Task: Provide a deep, detailed execution plan ONLY (no code yet). The plan should include specific, actionable steps with rationale and potential risks.
+
+Respond in EXACTLY this format:
 
 PLAN_START
 1. [First step description]
@@ -147,14 +172,8 @@ PLAN_START
 PLAN_END
 
 EXPLANATION_START
-[Detailed explanation of what you're doing and why]
-EXPLANATION_END
-
-NEW_CODE_START
-[Complete new/modified code here]
-NEW_CODE_END
-
-Make sure the new code is complete and functional.`,
+[Detailed explanation of approach, considerations, and trade-offs]
+EXPLANATION_END`,
             },
           ],
         },
@@ -172,34 +191,62 @@ Make sure the new code is complete and functional.`,
   return parseAIResponse(rawResponse);
 }
 
-// NEW FUNCTION: Parse AI response
+// Helper to convert plan to text list for prompting
+function formatPlanForPrompt(plan: PlanStep[]): string {
+  if (!plan || plan.length === 0) return 'No plan provided.';
+  return plan.map((p) => `${p.step}. ${p.description}`).join('\n');
+}
 
+// NEW FUNCTION: Implementation call after user approves plan
+async function callGeminiForImplementation(
+  apiKey: string,
+  currentCode: string,
+  userPrompt: string,
+  fileName: string,
+  plan: PlanStep[]
+): Promise<AIResponse> {
+  const planText = formatPlanForPrompt(plan);
+  const response = await axios.post(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `You are an expert software engineer implementing the approved plan for: "${userPrompt}".
 
-// NEW FUNCTION: Execute code generation with animated steps
-async function executeCodeGeneration(panel: vscode.WebviewPanel, response: AIResponse): Promise<void> {
-  for (let i = 0; i < response.plan.length; i++) {
-    // Update step status to executing
-    panel.webview.postMessage({
-      type: 'updateStepStatus',
-      stepIndex: i,
-      status: 'executing'
-    });
+File: ${fileName}
+Current Code:
+${currentCode}
 
-    // Simulate execution time
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+Approved PLAN:
+${planText}
 
-    // Update step status to completed
-    panel.webview.postMessage({
-      type: 'updateStepStatus',
-      stepIndex: i,
-      status: 'completed'
-    });
-  }
+Requirements:
+- Produce the full, working code for the file, replacing the current code entirely.
+- The response MUST include ONLY the following sections:
+NEW_CODE_START
+[PASTE COMPLETE CODE HERE WITH NO MARKDOWN FENCES]
+NEW_CODE_END
+- Do NOT include triple backticks or any other markdown code fences.
+- Ensure the code compiles without errors and preserves correct formatting and indentation.
+- Do not add any commentary outside the specified sections.`,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+    }
+  );
 
-  // Show final result
-  panel.webview.postMessage({
-    type: 'executionComplete'
-  });
+  const rawResponse = response.data.candidates[0].content.parts[0].text;
+  return parseAIResponse(rawResponse);
 }
 
 

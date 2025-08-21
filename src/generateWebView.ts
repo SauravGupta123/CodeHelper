@@ -106,6 +106,7 @@ export function getWebviewContent(): string {
             overflow-x: auto;
             max-height: 300px;
             overflow-y: auto;
+            white-space: pre;
         }
         .explanation {
             background: #2d2d30;
@@ -237,6 +238,10 @@ export function getWebviewContent(): string {
                 case 'showPlan':
                     showPlan(message);
                     break;
+                
+                case 'showGeneratedCode':
+                    showGeneratedCode(message);
+                    break;
                     
                 case 'updateStepStatus':
                     updateStepStatus(message.stepIndex, message.status);
@@ -275,10 +280,14 @@ export function getWebviewContent(): string {
             document.getElementById('explanation').style.display = 'block';
             document.getElementById('explanationText').textContent = data.explanation;
             
-            // Show code section
+            // Hide code section until generation completes
+            document.getElementById('codeSection').style.display = 'none';
+        }
+
+        function showGeneratedCode(data) {
             document.getElementById('codeSection').style.display = 'block';
-            document.getElementById('originalCode').textContent = data.originalCode;
-            document.getElementById('newCode').textContent = data.newCode;
+            document.getElementById('originalCode').textContent = data.originalCode || '';
+            document.getElementById('newCode').textContent = data.newCode || '';
         }
 
         function updateStepStatus(stepIndex, status) {
