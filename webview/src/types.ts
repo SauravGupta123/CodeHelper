@@ -6,6 +6,7 @@ export interface ChatMessage {
   plan?: PlanStep[];
   explanation?: string;
   generatedCode?: string;
+  structuredBlocks?: StructuredBlock[];
 }
 
 export interface PlanStep {
@@ -13,7 +14,29 @@ export interface PlanStep {
   description: string;
 }
 
+export interface StructuredBlock {
+  id: string;
+  type: 'thinking' | 'observations' | 'approach' | 'plan';
+  heading: string;
+  subheadings?: SubHeading[];
+  points?: string[];
+  content?: string;
+  visible: boolean;
+}
+
+export interface SubHeading {
+  title: string;
+  points: string[];
+}
+
 export interface VSCodeMessage {
   type: string;
   [key: string]: any;
+}
+
+export interface AgentResponse {
+  thinking: string;
+  observations: string[];
+  approach: string;
+  detailedPlan: string;
 }
