@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (!userPrompt) {
         return; // User cancelled
       }
-   
+     
       // Step 2: Get current code
       const document = editor.document;
       const currentCode = document.getText();
@@ -83,11 +83,11 @@ panel.webview.html = htmlContent.toString();
           plan: response.plan,
           explanation: response.explanation
         });
-
         // Step 7: Handle webview messages (chat protocol)
         let latestGeneratedCode: string = '';
         panel.webview.onDidReceiveMessage(
           async (message) => {
+            let planResponse:any;
             switch (message.type) {
               case 'userChatSubmit': {
                 // Re-run planning based on freeform chat message
@@ -95,6 +95,7 @@ panel.webview.html = htmlContent.toString();
                 panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
                 try {
                   const planResp = await callGeminiForPlanning(apiKey, currentCode, newPrompt, fileName);
+                  planResponse = planResp;
                   panel.webview.postMessage({ type: 'assistantPlan', plan: planResp.plan, explanation: planResp.explanation });
                 } catch (e: any) {
                   vscode.window.showErrorMessage('Planning failed: ' + e.message);
@@ -104,7 +105,7 @@ panel.webview.html = htmlContent.toString();
               case 'executePlan': {
                 panel.webview.postMessage({ type: 'updateStatus', message: "Generating code (I'm working on it)..." });
                 try {
-                  const implementation = await callGeminiForImplementation(apiKey, currentCode, userPrompt, fileName, response.plan);
+                  const implementation = await callGeminiForImplementation(apiKey, currentCode, userPrompt, fileName, planResponse);
                   const cleaned = cleanCodeBlock(implementation.newCode || '');
                   latestGeneratedCode = cleaned;
                   panel.webview.postMessage({ type: 'showGeneratedCode', originalCode: currentCode, newCode: cleaned });
@@ -120,7 +121,7 @@ panel.webview.html = htmlContent.toString();
                   return;
                 }
                 await applyChangesToEditor(editor, latestGeneratedCode);
-                panel.dispose();
+                // Do not close panel; keep chat open for further prompts
                 break;
               }
               case 'cancel': {
@@ -170,6 +171,7 @@ panel.webview.html = htmlContent.toString();
       panel.webview.html =  getWebviewContent(panel, context.extensionUri);
       console.log("panal opened");
       let latestGeneratedCode: string = '';
+      let planResponse: AIResponse | undefined; // Move planResponse outside to persist between messages
       panel.webview.onDidReceiveMessage(async (message) => {
         console.log('Extension received message:', message);
         switch (message.type) {
@@ -180,9 +182,9 @@ panel.webview.html = htmlContent.toString();
             panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
             try {
               console.log('Calling Gemini for planning...');
-              const planResp = await callGeminiForPlanning(apiKey, currentCode, prompt, fileName);
-              console.log('Sending assistantPlan message:', planResp);
-              panel.webview.postMessage({ type: 'assistantPlan', plan: planResp.plan, explanation: planResp.explanation });
+              planResponse = await callGeminiForPlanning(apiKey, currentCode, prompt, fileName);
+              console.log('Sending assistantPlan message:', planResponse);
+              panel.webview.postMessage({ type: 'assistantPlan', plan: planResponse.plan, explanation: planResponse.explanation });
             } catch (e: any) {
               console.error('Planning failed:', e);
               vscode.window.showErrorMessage('Planning failed: ' + e.message);
@@ -194,8 +196,11 @@ panel.webview.html = htmlContent.toString();
             try {
               // Use the last shown plan (cannot read from webview state, so re-plan quickly is also ok). For simplicity, re-plan using last prompt is not stored here.
               const prompt = 'Implement the approved plan based on the latest chat plan.';
-              const planResp = await callGeminiForPlanning(apiKey, currentCode, prompt, fileName);
-              const implementation = await callGeminiForImplementation(apiKey, currentCode, prompt, fileName, planResp.plan);
+              if (!planResponse || !planResponse.plan) {
+                vscode.window.showErrorMessage('No plan available. Please submit a request first.');
+                return;
+              }
+              const implementation = await callGeminiForImplementation(apiKey, currentCode, prompt, fileName, planResponse.plan);
               const cleaned = cleanCodeBlock(implementation.newCode || '');
               latestGeneratedCode = cleaned;
               panel.webview.postMessage({ type: 'showGeneratedCode', originalCode: currentCode, newCode: cleaned });
@@ -212,7 +217,7 @@ panel.webview.html = htmlContent.toString();
             if (editor) {
               await applyChangesToEditor(editor, latestGeneratedCode);
             }
-            panel.dispose();
+            // Keep panel open for continued conversation
             break;
           }
           case 'cancel': {
@@ -260,19 +265,29 @@ File: ${fileName}
 Current Code:
 ${currentCode}
 
-Task: Provide a deep, detailed execution plan ONLY (no code yet). The plan should include specific, actionable steps with rationale and potential risks.
+Task: Provide a detailed execution plan ONLY (no code yet). The plan must be clean markdown that renders well with headings and bullet lists.
 
-Respond in EXACTLY this format:
+Strict output contract (do not include any extra text):
 
 PLAN_START
-1. [First step description]
-2. [Second step description]
-3. [Third step description]
+# Execution Plan
+## Steps
+1. Step title: brief one-line summary
+   - Key action
+   - Important note
+2. Step title: brief one-line summary
+   - Key action
+   - Important note
 ...
 PLAN_END
 
 EXPLANATION_START
-[Detailed explanation of approach, considerations, and trade-offs]
+# Rationale
+## Overview
+- Why this approach
+- Risks and mitigations
+## Success Criteria
+- What good looks like
 EXPLANATION_END`,
             },
           ],
