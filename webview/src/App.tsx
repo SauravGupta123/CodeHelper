@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
 import { useVSCodeAPI } from './hooks/useVSCodeAPI';
+import { PlanningOverlay } from './components/PlanningOverlay';
 
 declare global {
   interface Window {
@@ -16,6 +17,7 @@ const vscode = window.acquireVsCodeApi();
 export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const { status, setStatus } = useVSCodeAPI(vscode);
+  const [isPlanning, setIsPlanning] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +41,8 @@ export const App: React.FC = () => {
     };
 
     addMessage(userMessage);
-    setStatus('Analyzing your request...');
+    setStatus('Thinking… generating plan');
+    setIsPlanning(true);
     
     vscode.postMessage({ type: 'userChatSubmit', prompt: content });
   };
@@ -53,6 +56,7 @@ export const App: React.FC = () => {
       switch (message.type) {
         case 'assistantPlan':
           console.log('Processing assistant plan:', message);
+          setIsPlanning(false);
           setStatus('Plan ready');
           const assistantMessage: ChatMessage = {
             id: Date.now().toString(),
@@ -81,6 +85,9 @@ export const App: React.FC = () => {
         case 'updateStatus':
           console.log('Updating status:', message.message);
           setStatus(message.message || '');
+          if (message.message?.toLowerCase().includes('analyzing')) {
+            setIsPlanning(true);
+          }
           break;
           
         default:
@@ -98,8 +105,9 @@ export const App: React.FC = () => {
       
       <div 
         ref={chatRef}
-        className="flex-1 overflow-y-auto"
+        className="relative flex-1 overflow-y-auto"
       >
+        <PlanningOverlay visible={isPlanning} status={status} />
         <ChatMessages 
           messages={messages} 
           onExecutePlan={() => {
