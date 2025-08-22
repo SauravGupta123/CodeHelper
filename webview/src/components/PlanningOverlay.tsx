@@ -22,10 +22,10 @@ export const PlanningOverlay: React.FC<PlanningOverlayProps> = ({ visible, statu
           <div className="flex-1">
             <div className="text-vscode-text mb-2">{status || 'Thinking…'}</div>
             <ul className="list-disc list-inside text-vscode-muted space-y-1">
-              <li>Analyzing code and context</li>
-              <li>Mapping dependencies and constraints</li>
-              <li>Drafting step-by-step execution plan</li>
-              <li>Preparing rationale and risks</li>
+              <li>🧠 Analyzing code and context</li>
+              <li>🔍 Generating key observations</li>
+              <li>🎯 Defining strategic approach</li>
+              <li>📋 Creating detailed implementation plan</li>
             </ul>
           </div>
         </div>
@@ -33,6 +33,7 @@ export const PlanningOverlay: React.FC<PlanningOverlayProps> = ({ visible, statu
     </div>
   );
 };
+
 
 
 
