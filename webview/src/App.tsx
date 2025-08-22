@@ -64,7 +64,8 @@ export const App: React.FC = () => {
             content: 'Execution Plan',
             timestamp: new Date(),
             plan: message.plan || [],
-            explanation: message.explanation || ''
+            explanation: message.explanation || '',
+            structuredBlocks: message.structuredBlocks || []
           };
           addMessage(assistantMessage);
           break;
