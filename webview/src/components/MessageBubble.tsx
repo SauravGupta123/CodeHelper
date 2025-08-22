@@ -21,21 +21,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       return (
         <div className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold text-blue-300 mb-3">Execution Plan</h3>
-            <div className="space-y-3">
-              {message.plan.map((step, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <span className="w-6 h-6 bg-vscode-accent text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    {step.step}
-                  </span>
-                  <span className="text-vscode-text leading-relaxed">{step.description}</span>
-                </div>
-              ))}
-            </div>
+            <MarkdownRenderer
+              content={`# Execution Plan\n\n## Steps\n${message.plan
+                .map((s) => `1. ${s.description}`)
+                .join('\n')}`}
+            />
           </div>
           <div>
-            <h4 className="text-md font-semibold text-blue-300 mb-2">Rationale</h4>
-            <MarkdownRenderer content={message.explanation} />
+            <MarkdownRenderer content={`# Rationale\n\n${message.explanation}`} />
           </div>
           <div className="pt-2">
             <button
