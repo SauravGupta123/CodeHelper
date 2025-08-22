@@ -2,6 +2,7 @@ import React from 'react';
 import { ChatMessage } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { CodeBlock } from './CodeBlock';
+import { StructuredBlockRenderer } from './StructuredBlockRenderer';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -16,7 +17,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const isUser = message.type === 'user';
 
+  const handleBlockVisible = (blockId: string) => {
+    // This can be used to track which blocks are visible
+    console.log(`Block ${blockId} is now visible`);
+  };
+
   const renderContent = () => {
+    if (message.structuredBlocks && message.structuredBlocks.length > 0) {
+      return (
+        <div className="space-y-4">
+          <StructuredBlockRenderer 
+            blocks={message.structuredBlocks} 
+            onBlockVisible={handleBlockVisible}
+          />
+          
+          <div className="pt-4 border-t border-vscode-border">
+            <button
+              onClick={onExecutePlan}
+              className="px-6 py-3 bg-vscode-accent text-white rounded-lg font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-vscode-accent focus:ring-offset-2 focus:ring-offset-vscode-surface transition-all"
+            >
+              Execute Plan
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     if (message.plan && message.explanation) {
       return (
         <div className="space-y-4">
