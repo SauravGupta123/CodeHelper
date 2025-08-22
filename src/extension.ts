@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
 import axios from "axios";
 import { getWebviewContent } from "./generateWebView";
-import { parseSuggestions, parseAIResponse, cleanCodeBlock } from "./utils/parsingFunctions";
-import {applyChangesToEditor, applySuggestionsAsComments}  from './utils/ApplyFunctions';
-
+import { parseSuggestions, parseAIResponse, cleanCodeBlock, parseAgentResponse, createStructuredBlocks } from "./utils/parsingFunctions";
+import { applyChangesToEditor, applySuggestionsAsComments } from './utils/ApplyFunctions';
+import { AgentOrchestrator } from './utils/AgentSystem';
 
 interface PlanStep {
   step: number;
@@ -15,6 +15,13 @@ interface AIResponse {
   plan: PlanStep[];
   newCode: string;
   explanation: string;
+}
+
+interface AgentResponse {
+  thinking: string;
+  observations: string[];
+  approach: string;
+  detailedPlan: string;
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -43,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (!userPrompt) {
         return; // User cancelled
       }
-     
+      
       // Step 2: Get current code
       const document = editor.document;
       const currentCode = document.getText();
@@ -76,27 +83,36 @@ panel.webview.html = htmlContent.toString();
         // Step 6: Kick off planning immediately with user's prompt
         panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
 
-        const response = await callGeminiForPlanning(apiKey, currentCode, userPrompt, fileName);
+        const agentOrchestrator = new AgentOrchestrator();
+        const response = await agentOrchestrator.executeAgenticLoop(apiKey, currentCode, userPrompt, fileName);
+
+        // Convert to structured blocks
+        const structuredBlocks = createStructuredBlocks(response);
 
         panel.webview.postMessage({
           type: 'assistantPlan',
-          plan: response.plan,
-          explanation: response.explanation
+          structuredBlocks: structuredBlocks
         });
+
         // Step 7: Handle webview messages (chat protocol)
         let latestGeneratedCode: string = '';
+        let planResponse: any;
         panel.webview.onDidReceiveMessage(
           async (message) => {
-            let planResponse:any;
             switch (message.type) {
               case 'userChatSubmit': {
                 // Re-run planning based on freeform chat message
                 const newPrompt: string = message.prompt || userPrompt;
                 panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
                 try {
-                  const planResp = await callGeminiForPlanning(apiKey, currentCode, newPrompt, fileName);
+                  const agentOrchestrator = new AgentOrchestrator();
+                  const planResp = await agentOrchestrator.executeAgenticLoop(apiKey, currentCode, newPrompt, fileName);
                   planResponse = planResp;
-                  panel.webview.postMessage({ type: 'assistantPlan', plan: planResp.plan, explanation: planResp.explanation });
+                  const structuredBlocks = createStructuredBlocks(planResp);
+                  panel.webview.postMessage({ 
+                    type: 'assistantPlan', 
+                    structuredBlocks: structuredBlocks 
+                  });
                 } catch (e: any) {
                   vscode.window.showErrorMessage('Planning failed: ' + e.message);
                 }
@@ -105,7 +121,13 @@ panel.webview.html = htmlContent.toString();
               case 'executePlan': {
                 panel.webview.postMessage({ type: 'updateStatus', message: "Generating code (I'm working on it)..." });
                 try {
-                  const implementation = await callGeminiForImplementation(apiKey, currentCode, userPrompt, fileName, planResponse);
+                  // Convert AgentResponse to AIResponse format for compatibility
+                  const aiResponse: AIResponse = {
+                    plan: planResponse ? [{ step: 1, description: 'Execute the approved plan', status: 'pending' }] : [],
+                    newCode: '',
+                    explanation: planResponse ? planResponse.detailedPlan : ''
+                  };
+                  const implementation = await callGeminiForImplementation(apiKey, currentCode, userPrompt, fileName, aiResponse.plan);
                   const cleaned = cleanCodeBlock(implementation.newCode || '');
                   latestGeneratedCode = cleaned;
                   panel.webview.postMessage({ type: 'showGeneratedCode', originalCode: currentCode, newCode: cleaned });
@@ -171,7 +193,7 @@ panel.webview.html = htmlContent.toString();
       panel.webview.html =  getWebviewContent(panel, context.extensionUri);
       console.log("panal opened");
       let latestGeneratedCode: string = '';
-      let planResponse: AIResponse | undefined; // Move planResponse outside to persist between messages
+      let planResponse: AgentResponse | undefined;
       panel.webview.onDidReceiveMessage(async (message) => {
         console.log('Extension received message:', message);
         switch (message.type) {
@@ -182,9 +204,14 @@ panel.webview.html = htmlContent.toString();
             panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
             try {
               console.log('Calling Gemini for planning...');
-              planResponse = await callGeminiForPlanning(apiKey, currentCode, prompt, fileName);
+              const agentOrchestrator = new AgentOrchestrator();
+              planResponse = await agentOrchestrator.executeAgenticLoop(apiKey, currentCode, prompt, fileName);
               console.log('Sending assistantPlan message:', planResponse);
-              panel.webview.postMessage({ type: 'assistantPlan', plan: planResponse.plan, explanation: planResponse.explanation });
+              const structuredBlocks = createStructuredBlocks(planResponse);
+              panel.webview.postMessage({ 
+                type: 'assistantPlan', 
+                structuredBlocks: structuredBlocks 
+              });
             } catch (e: any) {
               console.error('Planning failed:', e);
               vscode.window.showErrorMessage('Planning failed: ' + e.message);
@@ -196,11 +223,22 @@ panel.webview.html = htmlContent.toString();
             try {
               // Use the last shown plan (cannot read from webview state, so re-plan quickly is also ok). For simplicity, re-plan using last prompt is not stored here.
               const prompt = 'Implement the approved plan based on the latest chat plan.';
-              if (!planResponse || !planResponse.plan) {
+              if (!planResponse) {
                 vscode.window.showErrorMessage('No plan available. Please submit a request first.');
                 return;
               }
-              const implementation = await callGeminiForImplementation(apiKey, currentCode, prompt, fileName, planResponse.plan);
+              
+              // Convert AgentResponse to the format needed for implementation
+              const planSteps = planResponse.detailedPlan
+                .split('\n')
+                .filter((line: string) => line.trim().match(/^### Step \d+:/))
+                .map((line: string, index: number) => ({
+                  step: index + 1,
+                  description: line.replace(/^### Step \d+:\s*/, '').trim(),
+                  status: 'pending' as const
+                }));
+
+              const implementation = await callGeminiForImplementation(apiKey, currentCode, prompt, fileName, planSteps);
               const cleaned = cleanCodeBlock(implementation.newCode || '');
               latestGeneratedCode = cleaned;
               panel.webview.postMessage({ type: 'showGeneratedCode', originalCode: currentCode, newCode: cleaned });
@@ -248,6 +286,8 @@ panel.webview.html = htmlContent.toString();
   );
   context.subscriptions.push(createWithAI, chatWithAI, openTestWebview);
 }
+
+export function deactivate() {}
 
 // NEW FUNCTION: Call Gemini for planning
 async function callGeminiForPlanning(apiKey: string, currentCode: string, userPrompt: string, fileName: string): Promise<AIResponse> {
@@ -363,7 +403,3 @@ NEW_CODE_END
   const rawResponse = response.data.candidates[0].content.parts[0].text;
   return parseAIResponse(rawResponse);
 }
-
-
-
-export function deactivate() {}
