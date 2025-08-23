@@ -60,7 +60,8 @@
     "dev:webview": "cd webview && npm run dev"
   },
   "dependencies": {
-    "axios": "^1.11.0"
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.1"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

@@ -6,12 +6,14 @@ import { StructuredBlockRenderer } from './StructuredBlockRenderer';
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  isPlanComplete: boolean;
   onExecutePlan: () => void;
   onApplyChanges: () => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
+  isPlanComplete,
   onExecutePlan,
   onApplyChanges,
 }) => {
@@ -34,9 +36,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <div className="pt-4 border-t border-vscode-border">
             <button
               onClick={onExecutePlan}
-              className="px-6 py-3 bg-vscode-accent text-white rounded-lg font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-vscode-accent focus:ring-offset-2 focus:ring-offset-vscode-surface transition-all"
+              disabled={!isPlanComplete}
+              className={`px-6 py-3 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-vscode-surface transition-all ${
+                isPlanComplete
+                  ? 'bg-vscode-accent text-white hover:bg-blue-600 focus:ring-vscode-accent'
+                  : ' cursor-not-allowed'
+              }`}
             >
-              Execute Plan
+              {isPlanComplete ? 'Execute Plan' : 'Generating Plan...'}
             </button>
           </div>
         </div>
@@ -72,7 +79,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       return (
         <div className="space-y-3">
           <h3 className="text-lg font-semibold text-vscode-success">Generated Code</h3>
-          <CodeBlock code={message.generatedCode} language="typescript" />
+          <CodeBlock
+            code={message.generatedCode}
+            language="typescript"
+          />
           <div className="pt-2">
             <button
               onClick={onApplyChanges}
