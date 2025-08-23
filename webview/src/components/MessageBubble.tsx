@@ -40,7 +40,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               className={`px-6 py-3 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-vscode-surface transition-all ${
                 isPlanComplete
                   ? 'bg-vscode-accent text-white hover:bg-blue-600 focus:ring-vscode-accent'
-                  : 'bg-vscode-muted text-vscode-muted cursor-not-allowed'
+                  : ' cursor-not-allowed'
               }`}
             >
               {isPlanComplete ? 'Execute Plan' : 'Generating Plan...'}
