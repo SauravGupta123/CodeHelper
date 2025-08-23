@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
 import axios from "axios";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 import { getWebviewContent } from "./generateWebView";
 import { parseSuggestions, parseAIResponse, cleanCodeBlock, parseAgentResponse, createStructuredBlocks } from "./utils/parsingFunctions";
 import { applyChangesToEditor, applySuggestionsAsComments } from './utils/ApplyFunctions';
@@ -26,7 +29,7 @@ interface AgentResponse {
 
 export function activate(context: vscode.ExtensionContext) {
 
-	context.secrets.store("gemini-api-key", "AIzaSyB6lYX-xuj970L9yUNzyCdyYFv3gMxZxEo");
+	context.secrets.store("gemini-api-key", process.env.GEMINI_API_KEY || '');
   // Command: Set Gemini API Key
 
 
