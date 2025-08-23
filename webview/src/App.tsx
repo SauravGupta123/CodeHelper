@@ -20,6 +20,9 @@ export const App: React.FC = () => {
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState<ChatMessage | null>(null);
   const [isPlanComplete, setIsPlanComplete] = useState(false);
   const [planResponse, setPlanResponse] = useState<any>(null);
+  
+  // Use ref to track blocks immediately without waiting for state updates
+  const streamingBlocksRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
     if (chatRef.current) {
@@ -36,7 +39,7 @@ export const App: React.FC = () => {
       setCurrentStreamingMessage(prev => prev ? { ...prev, ...updates } : null);
     }
   };
-
+//when use sends the query from frontend
   const handleSendMessage = (content: string) => {
     if (!content.trim()) return;
 
@@ -51,6 +54,9 @@ export const App: React.FC = () => {
     setStatus('Thinking...');
     setIsPlanComplete(false);
     setPlanResponse(null);
+    
+    // Clear the streaming blocks ref
+    streamingBlocksRef.current.clear();
     
     vscode.postMessage({ type: 'userChatSubmit', prompt: content });
   };
@@ -92,6 +98,24 @@ export const App: React.FC = () => {
               // Don't set isPlanComplete here, wait for streamingComplete
             }
             
+            // Create block data
+            const blockData = {
+              id: `${agentType}-${Date.now()}`,
+              type: agentType,
+              heading: agentType === 'thinking' ? 'Thinking Process' :
+                       agentType === 'observations' ? 'Key Observations' :
+                       agentType === 'approach' ? 'Strategic Approach' :
+                       'Implementation Plan',
+              visible: true,
+              isStreaming: !isComplete,
+              streamedContent: content,
+              streamedPoints: points
+            };
+            
+            // Store in ref immediately for tracking
+            streamingBlocksRef.current.set(agentType, blockData);
+            console.log(`Stored ${agentType} block in ref:`, blockData);
+            
             // Update or create structured block
             const existingBlockIndex = currentStreamingMessage.structuredBlocks?.findIndex(b => b.type === agentType);
             
@@ -126,74 +150,84 @@ export const App: React.FC = () => {
               console.log(`Created new ${agentType} block:`, newBlock);
             }
             
-            // Log the current state for debugging
+            // Loging the current state for debugging
             console.log(`Agent ${agentType} response processed:`, { content: content?.substring(0, 100), isComplete, points });
             console.log(`Current structuredBlocks count:`, currentStreamingMessage.structuredBlocks?.length || 0);
             console.log(`Current structuredBlocks types:`, currentStreamingMessage.structuredBlocks?.map(b => b.type) || []);
+            console.log(`Ref blocks count:`, streamingBlocksRef.current.size);
+            console.log(`Ref blocks types:`, Array.from(streamingBlocksRef.current.keys()));
           }
           break;
 
         case 'streamingComplete':
           console.log('Streaming complete');
-          if (currentStreamingMessage) {
-            console.log('Current streaming message before completion:', currentStreamingMessage);
-            console.log('Structured blocks before completion:', currentStreamingMessage.structuredBlocks);
-            
-            // Convert streaming message to regular message
-            const finalMessage: ChatMessage = {
-              ...currentStreamingMessage,
-              isStreaming: false,
-              structuredBlocks: currentStreamingMessage.structuredBlocks?.map(block => ({
+          
+          // Add a small delay to ensure all state updates are processed
+          setTimeout(() => {
+            if (currentStreamingMessage) {
+              console.log('Current streaming message before completion:', currentStreamingMessage);
+              console.log('Structured blocks before completion:', currentStreamingMessage.structuredBlocks);
+              console.log('Ref blocks before completion:', Array.from(streamingBlocksRef.current.entries()));
+              
+              // Use ref data for validation instead of state data
+              const requiredBlocks = ['thinking', 'observations', 'approach', 'plan'];
+              const missingBlocks = requiredBlocks.filter(blockType => {
+                const block = streamingBlocksRef.current.get(blockType);
+                console.log(`Checking block type ${blockType} in ref:`, block);
+                if (!block) {
+                  console.log(`Block type ${blockType} not found in ref`);
+                  return true;
+                }
+                if (blockType === 'observations') {
+                  const hasPoints = block.streamedPoints && block.streamedPoints.length > 0;
+                  console.log(`Block type ${blockType} has points:`, hasPoints, block.streamedPoints);
+                  return !hasPoints;
+                }
+                const hasContent = block.streamedContent && block.streamedContent.trim() !== '';
+                console.log(`Block type ${blockType} has content:`, hasContent, block.streamedContent?.substring(0, 100));
+                return !hasContent;
+              });
+              
+              if (missingBlocks.length > 0) {
+                console.error('Missing or empty blocks:', missingBlocks);
+                setStatus('Plan generation incomplete - missing: ' + missingBlocks.join(', '));
+                setIsPlanComplete(false);
+                return;
+              }
+              
+              // Convert streaming message to regular message using ref data
+              const finalBlocks = Array.from(streamingBlocksRef.current.values()).map(block => ({
                 ...block,
                 isStreaming: false,
                 content: block.streamedContent || block.content || '',
                 points: block.streamedPoints || block.points || []
-              }))
-            };
-            console.log('Final message created:', finalMessage);
-            console.log('Final structured blocks:', finalMessage.structuredBlocks);
-            
-            // Validate that all required blocks are present and have content
-            const requiredBlocks = ['thinking', 'observations', 'approach', 'plan'];
-            const missingBlocks = requiredBlocks.filter(blockType => {
-              const block = finalMessage.structuredBlocks?.find(b => b.type === blockType);
-              console.log(`Checking block type ${blockType}:`, block);
-              if (!block) {
-                console.log(`Block type ${blockType} not found`);
-                return true;
-              }
-              if (blockType === 'observations') {
-                const hasPoints = block.points && block.points.length > 0;
-                console.log(`Block type ${blockType} has points:`, hasPoints, block.points);
-                return !hasPoints;
-              }
-              const hasContent = block.content && block.content.trim() !== '';
-              console.log(`Block type ${blockType} has content:`, hasContent, block.content?.substring(0, 100));
-              return !hasContent;
-            });
-            
-            if (missingBlocks.length > 0) {
-              console.error('Missing or empty blocks:', missingBlocks);
-              setStatus('Plan generation incomplete - missing: ' + missingBlocks.join(', '));
-              setIsPlanComplete(false);
-              return;
+              }));
+              
+              const finalMessage: ChatMessage = {
+                ...currentStreamingMessage,
+                isStreaming: false,
+                structuredBlocks: finalBlocks
+              };
+              
+              console.log('Final message created:', finalMessage);
+              console.log('Final structured blocks:', finalMessage.structuredBlocks);
+              
+              // Reconstruct planResponse from ref data for execute plan functionality
+              const reconstructedPlanResponse = {
+                thinking: streamingBlocksRef.current.get('thinking')?.streamedContent || '',
+                observations: streamingBlocksRef.current.get('observations')?.streamedPoints || [],
+                approach: streamingBlocksRef.current.get('approach')?.streamedContent || '',
+                detailedPlan: streamingBlocksRef.current.get('plan')?.streamedContent || ''
+              };
+              setPlanResponse(reconstructedPlanResponse);
+              console.log('PlanResponse reconstructed:', reconstructedPlanResponse);
+              
+              addMessage(finalMessage);
+              setCurrentStreamingMessage(null);
+              setStatus('Plan ready');
+              setIsPlanComplete(true);
             }
-            
-            // Reconstruct planResponse from streaming data for execute plan functionality
-            const reconstructedPlanResponse = {
-              thinking: finalMessage.structuredBlocks?.find(b => b.type === 'thinking')?.content || '',
-              observations: finalMessage.structuredBlocks?.find(b => b.type === 'observations')?.points || [],
-              approach: finalMessage.structuredBlocks?.find(b => b.type === 'approach')?.content || '',
-              detailedPlan: finalMessage.structuredBlocks?.find(b => b.type === 'plan')?.content || ''
-            };
-            setPlanResponse(reconstructedPlanResponse);
-            console.log('PlanResponse reconstructed:', reconstructedPlanResponse);
-            
-            addMessage(finalMessage);
-            setCurrentStreamingMessage(null);
-            setStatus('Plan ready');
-            setIsPlanComplete(true);
-          }
+          }, 100); // 100ms delay to ensure state updates are processed
           break;
 
         case 'assistantPlan':
