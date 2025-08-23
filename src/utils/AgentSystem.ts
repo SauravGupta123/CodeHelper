@@ -7,6 +7,13 @@ interface AgentResponse {
   detailedPlan: string;
 }
 
+interface StreamingAgentResponse {
+  type: 'thinking' | 'observations' | 'approach' | 'plan';
+  content: string;
+  isComplete: boolean;
+  points?: string[];
+}
+
 export class AnalysisAgent {
   async analyzeCode(code: string, prompt: string, fileName: string, apiKey: string): Promise<string> {
     const response = await axios.post(
@@ -139,6 +146,7 @@ Respond with ONLY the approach description in clear, structured paragraphs.`
 
 export class PlanningAgent {
   async createDetailedPlan(code: string, prompt: string, fileName: string, approach: string, apiKey: string): Promise<string> {
+    console.log("planning agent triggered");
     const response = await axios.post(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
       {
@@ -188,8 +196,12 @@ Ensure each step is actionable, specific, and builds upon previous steps.`
         },
       }
     );
-
-    return response.data.candidates[0].content.parts[0].text;
+    
+    const detailedPlan = response.data.candidates[0].content.parts[0].text;
+    console.log("planning agent response received, content length:", detailedPlan.length);
+    console.log("planning agent response preview:", detailedPlan.substring(0, 200) + "...");
+    
+    return detailedPlan;
   }
 }
 
@@ -223,5 +235,63 @@ export class AgentOrchestrator {
       approach,
       detailedPlan
     };
+  }
+
+  async executeStreamingAgenticLoop(
+    apiKey: string,
+    code: string, 
+    prompt: string, 
+    fileName: string,
+    onStreamingResponse: (response: StreamingAgentResponse) => void
+  ): Promise<void> {
+    console.log('Starting streaming agentic loop');
+    
+    try {
+      // Step 1: Analysis
+      console.log('Starting analysis agent');
+      const thinking = await this.analysisAgent.analyzeCode(code, prompt, fileName, apiKey);
+      onStreamingResponse({
+        type: 'thinking',
+        content: thinking,
+        isComplete: true
+      });
+      console.log('Analysis complete');
+
+      // Step 2: Observations (can run in parallel with thinking)
+      console.log('Starting observations agent');
+      const observations = await this.observationAgent.generateObservations(code, prompt, fileName, apiKey);
+      onStreamingResponse({
+        type: 'observations',
+        content: '',
+        isComplete: true,
+        points: observations
+      });
+      console.log('Observations complete');
+
+      // Step 3: Approach (depends on observations)
+      console.log('Starting approach agent');
+      const approach = await this.approachAgent.defineApproach(code, prompt, fileName, observations, apiKey);
+      onStreamingResponse({
+        type: 'approach',
+        content: approach,
+        isComplete: true
+      });
+      console.log('Approach complete');
+
+      // Step 4: Detailed Plan (depends on approach)
+      console.log('Starting planning agent');
+      const detailedPlan = await this.planningAgent.createDetailedPlan(code, prompt, fileName, approach, apiKey);
+      onStreamingResponse({
+        type: 'plan',
+        content: detailedPlan,
+        isComplete: true
+      });
+      console.log('Planning complete');
+
+      console.log('Streaming agentic loop completed successfully');
+    } catch (error) {
+      console.error('Error in streaming agentic loop:', error);
+      throw error;
+    }
   }
 }

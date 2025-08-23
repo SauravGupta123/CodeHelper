@@ -4,16 +4,20 @@ import { MessageBubble } from './MessageBubble';
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
+  streamingMessage: ChatMessage | null;
+  isPlanComplete: boolean;
   onExecutePlan: () => void;
   onApplyChanges: () => void;
 }
 
 export const ChatMessages: React.FC<ChatMessagesProps> = ({
   messages,
+  streamingMessage,
+  isPlanComplete,
   onExecutePlan,
   onApplyChanges,
 }) => {
-  if (messages.length === 0) {
+  if (messages.length === 0 && !streamingMessage) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center text-vscode-muted">
@@ -31,10 +35,20 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
         <MessageBubble
           key={message.id}
           message={message}
+          isPlanComplete={isPlanComplete}
           onExecutePlan={onExecutePlan}
           onApplyChanges={onApplyChanges}
         />
       ))}
+      {streamingMessage && (
+        <MessageBubble
+          key={streamingMessage.id}
+          message={streamingMessage}
+          isPlanComplete={isPlanComplete}
+          onExecutePlan={onExecutePlan}
+          onApplyChanges={onApplyChanges}
+        />
+      )}
     </div>
   );
 };

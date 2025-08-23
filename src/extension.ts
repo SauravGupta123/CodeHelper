@@ -26,142 +26,11 @@ interface AgentResponse {
 
 export function activate(context: vscode.ExtensionContext) {
 
-	context.secrets.store("gemini-api-key", "AIzaSyAH_BAmT2b2jL9ZK-osH9RkggLygmUnwNI");
+	context.secrets.store("gemini-api-key", "AIzaSyB6lYX-xuj970L9yUNzyCdyYFv3gMxZxEo");
   // Command: Set Gemini API Key
 
 
-  // NEW COMMAND: Create with AI (Traycer.ai clone) -> opens Chat-like webview
-  const createWithAI = vscode.commands.registerCommand(
-    "codeHelper.createWithAI",
-    async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage("No active editor!");
-        return;
-      }
 
-      // Step 1: Show dialog asking what to build
-      const userPrompt = await vscode.window.showInputBox({
-        prompt: "What do you want to build or modify in this code?",
-        placeHolder: "E.g., Add error handling, refactor this function, add unit tests...",
-        value: "",
-      });
-
-      if (!userPrompt) {
-        return; // User cancelled
-      }
-      
-      // Step 2: Get current code
-      const document = editor.document;
-      const currentCode = document.getText();
-      const fileName = document.fileName;
-
-      try {
-        // Step 3: Check API key
-        const apiKey = await context.secrets.get("gemini-api-key");
-        if (!apiKey) {
-          vscode.window.showErrorMessage("Set your Gemini API Key first!");
-          return;
-        }
-
-        // Step 4: Create and show webview panel (chat UI)
-        const panel = vscode.window.createWebviewPanel(
-          'codehelperChat',
-          'CodeHelper Chat',
-          vscode.ViewColumn.Beside,
-          {
-            enableScripts: true,
-            retainContextWhenHidden: true
-          }
-        );
-
-        // Step 5: Set initial HTML
-       const htmlPath = vscode.Uri.joinPath(context.extensionUri, 'webview', 'index.html');
-const htmlContent = await vscode.workspace.fs.readFile(htmlPath);
-panel.webview.html = htmlContent.toString();
-
-        // Step 6: Kick off planning immediately with user's prompt
-        panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
-
-        const agentOrchestrator = new AgentOrchestrator();
-        const response = await agentOrchestrator.executeAgenticLoop(apiKey, currentCode, userPrompt, fileName);
-
-        // Convert to structured blocks
-        const structuredBlocks = createStructuredBlocks(response);
-
-        panel.webview.postMessage({
-          type: 'assistantPlan',
-          structuredBlocks: structuredBlocks
-        });
-
-        // Step 7: Handle webview messages (chat protocol)
-        let latestGeneratedCode: string = '';
-        let planResponse: any;
-        panel.webview.onDidReceiveMessage(
-          async (message) => {
-            switch (message.type) {
-              case 'userChatSubmit': {
-                // Re-run planning based on freeform chat message
-                const newPrompt: string = message.prompt || userPrompt;
-                panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
-                try {
-                  const agentOrchestrator = new AgentOrchestrator();
-                  const planResp = await agentOrchestrator.executeAgenticLoop(apiKey, currentCode, newPrompt, fileName);
-                  planResponse = planResp;
-                  const structuredBlocks = createStructuredBlocks(planResp);
-                  panel.webview.postMessage({ 
-                    type: 'assistantPlan', 
-                    structuredBlocks: structuredBlocks 
-                  });
-                } catch (e: any) {
-                  vscode.window.showErrorMessage('Planning failed: ' + e.message);
-                }
-                break;
-              }
-              case 'executePlan': {
-                panel.webview.postMessage({ type: 'updateStatus', message: "Generating code (I'm working on it)..." });
-                try {
-                  // Convert AgentResponse to AIResponse format for compatibility
-                  const aiResponse: AIResponse = {
-                    plan: planResponse ? [{ step: 1, description: 'Execute the approved plan', status: 'pending' }] : [],
-                    newCode: '',
-                    explanation: planResponse ? planResponse.detailedPlan : ''
-                  };
-                  const implementation = await callGeminiForImplementation(apiKey, currentCode, userPrompt, fileName, aiResponse.plan);
-                  const cleaned = cleanCodeBlock(implementation.newCode || '');
-                  latestGeneratedCode = cleaned;
-                  panel.webview.postMessage({ type: 'showGeneratedCode', originalCode: currentCode, newCode: cleaned });
-                } catch (implErr: any) {
-                  console.log(implErr);
-                  vscode.window.showErrorMessage("Error generating implementation: " + implErr.message);
-                }
-                break;
-              }
-              case 'applyChanges': {
-                if (!latestGeneratedCode) {
-                  vscode.window.showErrorMessage('No generated code to apply yet. Execute the plan first.');
-                  return;
-                }
-                await applyChangesToEditor(editor, latestGeneratedCode);
-                // Do not close panel; keep chat open for further prompts
-                break;
-              }
-              case 'cancel': {
-                panel.dispose();
-                break;
-              }
-            }
-          },
-          undefined,
-          context.subscriptions
-        );
-
-      } catch (err: any) {
-        console.log(err);
-        vscode.window.showErrorMessage("Error: " + err.message);
-      }
-    }
-  );
 
   // NEW COMMAND: Chat with AI -> opens chat UI without initial prompt
   const chatWithAI = vscode.commands.registerCommand(
@@ -194,6 +63,7 @@ panel.webview.html = htmlContent.toString();
       console.log("panal opened");
       let latestGeneratedCode: string = '';
       let planResponse: AgentResponse | undefined;
+
       panel.webview.onDidReceiveMessage(async (message) => {
         console.log('Extension received message:', message);
         switch (message.type) {
@@ -205,13 +75,40 @@ panel.webview.html = htmlContent.toString();
             try {
               console.log('Calling Gemini for planning...');
               const agentOrchestrator = new AgentOrchestrator();
-              planResponse = await agentOrchestrator.executeAgenticLoop(apiKey, currentCode, prompt, fileName);
-              console.log('Sending assistantPlan message:', planResponse);
-              const structuredBlocks = createStructuredBlocks(planResponse);
-              panel.webview.postMessage({ 
-                type: 'assistantPlan', 
-                structuredBlocks: structuredBlocks 
-              });
+              
+              // Start streaming response
+              panel.webview.postMessage({ type: 'streamingStart' });
+              
+              await agentOrchestrator.executeStreamingAgenticLoop(
+                apiKey, 
+                currentCode, 
+                prompt, 
+                fileName,
+                (streamingResponse) => {
+                  console.log('Streaming response received:', {
+                    type: streamingResponse.type,
+                    contentLength: streamingResponse.content?.length || 0,
+                    contentPreview: streamingResponse.content?.substring(0, 100),
+                    pointsCount: streamingResponse.points?.length || 0,
+                    isComplete: streamingResponse.isComplete
+                  });
+                  
+                  panel.webview.postMessage({
+                    type: 'streamingAgentResponse',
+                    agentType: streamingResponse.type,
+                    content: streamingResponse.content,
+                    isComplete: streamingResponse.isComplete,
+                    points: streamingResponse.points
+                  });
+                }
+              );
+              
+              // Mark streaming as complete
+              panel.webview.postMessage({ type: 'streamingComplete' });
+              
+              // Store the plan response for later use (we'll reconstruct it from the streaming data)
+              // No need to call executeAgenticLoop again since streaming provides all data
+              console.log('Planning complete via streaming, planResponse will be available after streamingComplete');
             } catch (e: any) {
               console.error('Planning failed:', e);
               vscode.window.showErrorMessage('Planning failed: ' + e.message);
@@ -219,14 +116,19 @@ panel.webview.html = htmlContent.toString();
             break;
           }
           case 'executePlan': {
-            panel.webview.postMessage({ type: 'updateStatus', message: "Generating code (I'm working on it)..." });
+            panel.webview.postMessage({ type: 'updateStatus', message: "Generating code..." });
             try {
-              // Use the last shown plan (cannot read from webview state, so re-plan quickly is also ok). For simplicity, re-plan using last prompt is not stored here.
-              const prompt = 'Implement the approved plan based on the latest chat plan.';
+              // Get planResponse from the webview message
+              const planResponse = message.planResponse;
               if (!planResponse) {
                 vscode.window.showErrorMessage('No plan available. Please submit a request first.');
                 return;
               }
+              
+              console.log('Executing plan with response:', planResponse);
+              
+              // Use the original userPrompt for implementation
+              const implementationPrompt = 'Implement the approved plan based on the latest chat plan.';
               
               // Convert AgentResponse to the format needed for implementation
               const planSteps = planResponse.detailedPlan
@@ -238,12 +140,26 @@ panel.webview.html = htmlContent.toString();
                   status: 'pending' as const
                 }));
 
-              const implementation = await callGeminiForImplementation(apiKey, currentCode, prompt, fileName, planSteps);
+              if (planSteps.length === 0) {
+                vscode.window.showErrorMessage('No valid plan steps found. Please regenerate the plan.');
+                return;
+              }
+
+              const implementation = await callGeminiForImplementation(apiKey, currentCode, implementationPrompt, fileName, planSteps);
               const cleaned = cleanCodeBlock(implementation.newCode || '');
               latestGeneratedCode = cleaned;
-              panel.webview.postMessage({ type: 'showGeneratedCode', originalCode: currentCode, newCode: cleaned });
+              
+              // Send streaming code generation
+              panel.webview.postMessage({ 
+                type: 'showGeneratedCode', 
+                originalCode: currentCode, 
+                newCode: cleaned,
+                isStreaming: true
+              });
             } catch (e: any) {
-              vscode.window.showErrorMessage('Generation failed: ' + e.message);
+              console.error('Code generation failed:', e);
+              vscode.window.showErrorMessage('Code generation failed: ' + e.message);
+              panel.webview.postMessage({ type: 'updateStatus', message: 'Code generation failed' });
             }
             break;
           }
@@ -267,84 +183,13 @@ panel.webview.html = htmlContent.toString();
     }
   );
 
-  // TEST COMMAND: Open webview for testing
-  const openTestWebview = vscode.commands.registerCommand(
-    'codeHelper.openTestWebview',
-    async () => {
-      console.log("Opening test webview");
-      const panel = vscode.window.createWebviewPanel(
-        'testWebview',
-        'Test Webview',
-        vscode.ViewColumn.Beside,
-        { enableScripts: true, retainContextWhenHidden: true }
-      );
-      const htmlPath = vscode.Uri.joinPath(context.extensionUri, 'webview', 'index.html');
-      const htmlContent = await vscode.workspace.fs.readFile(htmlPath);
-      panel.webview.html = htmlContent.toString();
-      console.log("Test webview opened"); 
-    }
-  );
-  context.subscriptions.push(createWithAI, chatWithAI, openTestWebview);
+
+  context.subscriptions.push( chatWithAI);
 }
 
 export function deactivate() {}
 
-// NEW FUNCTION: Call Gemini for planning
-async function callGeminiForPlanning(apiKey: string, currentCode: string, userPrompt: string, fileName: string): Promise<AIResponse> {
-  const response = await axios.post(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-    {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `You are an AI code assistant. The user wants to achieve: "${userPrompt}"
 
-File: ${fileName}
-Current Code:
-${currentCode}
-
-Task: Provide a detailed execution plan ONLY (no code yet). The plan must be clean markdown that renders well with headings and bullet lists.
-
-Strict output contract (do not include any extra text):
-
-PLAN_START
-# Execution Plan
-## Steps
-1. Step title: brief one-line summary
-   - Key action
-   - Important note
-2. Step title: brief one-line summary
-   - Key action
-   - Important note
-...
-PLAN_END
-
-EXPLANATION_START
-# Rationale
-## Overview
-- Why this approach
-- Risks and mitigations
-## Success Criteria
-- What good looks like
-EXPLANATION_END`,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-    }
-  );
-
-  const rawResponse = response.data.candidates[0].content.parts[0].text;
-  return parseAIResponse(rawResponse);
-}
 
 // Helper to convert plan to text list for prompting
 function formatPlanForPrompt(plan: PlanStep[]): string {
@@ -360,6 +205,7 @@ async function callGeminiForImplementation(
   fileName: string,
   plan: PlanStep[]
 ): Promise<AIResponse> {
+  console.log("calling gemini for implementation with plan:::");  
   const planText = formatPlanForPrompt(plan);
   const response = await axios.post(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",

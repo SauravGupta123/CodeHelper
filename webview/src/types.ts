@@ -7,6 +7,7 @@ export interface ChatMessage {
   explanation?: string;
   generatedCode?: string;
   structuredBlocks?: StructuredBlock[];
+  isStreaming?: boolean;
 }
 
 export interface PlanStep {
@@ -22,6 +23,9 @@ export interface StructuredBlock {
   points?: string[];
   content?: string;
   visible: boolean;
+  isStreaming?: boolean;
+  streamedContent?: string;
+  streamedPoints?: string[];
 }
 
 export interface SubHeading {
@@ -39,4 +43,11 @@ export interface AgentResponse {
   observations: string[];
   approach: string;
   detailedPlan: string;
+}
+
+export interface StreamingAgentResponse {
+  type: 'thinking' | 'observations' | 'approach' | 'plan';
+  content: string;
+  isComplete: boolean;
+  points?: string[];
 }
