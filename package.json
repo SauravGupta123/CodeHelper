@@ -14,7 +14,8 @@
     "onCommand:codeHelper.analyzeCode",
     "onCommand:codeHelper.setApiKey",
     "onCommand:codeHelper.createWithAI",
-    "onCommand:codeHelper.chatWithAI"
+    "onCommand:codeHelper.chatWithAI",
+    "onCommand:codeHelper.testTools"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -44,8 +45,8 @@
         "title": "Open Test Webview"
       },
       {
-        "command": "codeHelper.chatWithAI",
-        "title": "Chat With AI"
+        "command": "codeHelper.testTools",
+        "title": "Test Codebase Tools"
       }
     ]
   },
