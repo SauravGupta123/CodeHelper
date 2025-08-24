@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { allTools } from './Tools';
+import { allTools, Tool } from './Tools';
 
 interface AgentResponse {
   thinking: string;
@@ -24,7 +24,7 @@ interface ContextGatheringResult {
 }
 
 export class IntelligentAnalysisAgent {
-  private tools = allTools;
+  private tools: Tool[] = allTools;
   private maxThinkingIterations = 5;
   private contextThreshold = 0.8; // Confidence threshold for context gathering
 
