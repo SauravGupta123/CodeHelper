@@ -33,9 +33,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.secrets.store("gemini-api-key",process.env.GEMINI_API_KEY || "");
   // Command: Set Gemini API Key
 
-
-
-
   // NEW COMMAND: Chat with AI -> opens chat UI without initial prompt
   const chatWithAI = vscode.commands.registerCommand(
     'codeHelper.chatWithAI',
@@ -75,15 +72,15 @@ export function activate(context: vscode.ExtensionContext) {
             const prompt = message.prompt || '';
             if (!prompt.trim()) return;
             console.log('Sending updateStatus message');
-            panel.webview.postMessage({ type: 'updateStatus', message: 'Analyzing your request...' });
+            panel.webview.postMessage({ type: 'updateStatus', message: 'Starting intelligent analysis with context gathering...' });
             try {
-              console.log('Calling Gemini for planning...');
+              console.log('Calling intelligent agent system for planning...');
               const agentOrchestrator = new AgentOrchestrator();
               
-              // Start streaming response
+              // Start streaming response with intelligent agent system
               panel.webview.postMessage({ type: 'streamingStart' });
               
-              await agentOrchestrator.executeStreamingAgenticLoop(
+              await agentOrchestrator.executeStreamingIntelligentAgenticLoop(
                 apiKey, 
                 currentCode, 
                 prompt, 
@@ -110,12 +107,10 @@ export function activate(context: vscode.ExtensionContext) {
               // Mark streaming as complete
               panel.webview.postMessage({ type: 'streamingComplete' });
               
-              // Store the plan response for later use (we'll reconstruct it from the streaming data)
-              // No need to call executeAgenticLoop again since streaming provides all data
-              console.log('Planning complete via streaming, planResponse will be available after streamingComplete');
+              console.log('Intelligent planning complete via streaming');
             } catch (e: any) {
-              console.error('Planning failed:', e);
-              vscode.window.showErrorMessage('Planning failed: ' + e.message);
+              console.error('Intelligent planning failed:', e);
+              vscode.window.showErrorMessage('Intelligent planning failed: ' + e.message);
             }
             break;
           }
@@ -187,13 +182,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-
   context.subscriptions.push( chatWithAI);
 }
 
 export function deactivate() {}
-
-
 
 // Helper to convert plan to text list for prompting
 function formatPlanForPrompt(plan: PlanStep[]): string {
