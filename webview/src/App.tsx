@@ -39,7 +39,8 @@ export const App: React.FC = () => {
       setCurrentStreamingMessage(prev => prev ? { ...prev, ...updates } : null);
     }
   };
-//when use sends the query from frontend
+
+  //when use sends the query from frontend
   const handleSendMessage = (content: string) => {
     if (!content.trim()) return;
 
@@ -51,7 +52,7 @@ export const App: React.FC = () => {
     };
 
     addMessage(userMessage);
-    setStatus('Thinking...');
+    setStatus('Starting intelligent analysis with context gathering...');
     setIsPlanComplete(false);
     setPlanResponse(null);
     
@@ -73,7 +74,7 @@ export const App: React.FC = () => {
           const streamingMessage: ChatMessage = {
             id: Date.now().toString(),
             type: 'assistant',
-            content: 'Generating response...',
+            content: 'Starting intelligent analysis...',
             timestamp: new Date(),
             isStreaming: true,
             structuredBlocks: []
@@ -86,23 +87,38 @@ export const App: React.FC = () => {
           if (currentStreamingMessage) {
             const { agentType, content, isComplete, points } = message;
             
-            // Update status based on agent type
+            // Update status based on agent type with more descriptive messages
             if (agentType === 'thinking') {
-              setStatus('Generating key observations...');
+              if (isComplete) {
+                setStatus('Context gathering complete. Generating key observations...');
+              } else {
+                setStatus('Gathering codebase context and analyzing project structure...');
+              }
             } else if (agentType === 'observations') {
-              setStatus('Generating strategic approach...');
+              if (isComplete) {
+                setStatus('Generating strategic approach...');
+              } else {
+                setStatus('Generating observations based on intelligent analysis...');
+              }
             } else if (agentType === 'approach') {
-              setStatus('Generating implementation plan...');
+              if (isComplete) {
+                setStatus('Generating implementation plan...');
+              } else {
+                setStatus('Defining strategic approach...');
+              }
             } else if (agentType === 'plan') {
-              setStatus('Generating implementation plan...'); // Keep status until streaming is complete
-              // Don't set isPlanComplete here, wait for streamingComplete
+              if (isComplete) {
+                setStatus('Plan generation complete');
+              } else {
+                setStatus('Creating detailed implementation plan...');
+              }
             }
             
             // Create block data
             const blockData = {
               id: `${agentType}-${Date.now()}`,
               type: agentType,
-              heading: agentType === 'thinking' ? 'Thinking Process' :
+              heading: agentType === 'thinking' ? 'Intelligent Analysis & Context Gathering' :
                        agentType === 'observations' ? 'Key Observations' :
                        agentType === 'approach' ? 'Strategic Approach' :
                        'Implementation Plan',
@@ -135,7 +151,7 @@ export const App: React.FC = () => {
               const newBlock = {
                 id: `${agentType}-${Date.now()}`,
                 type: agentType,
-                heading: agentType === 'thinking' ? 'Thinking Process' :
+                heading: agentType === 'thinking' ? 'Intelligent Analysis & Context Gathering' :
                          agentType === 'observations' ? 'Key Observations' :
                          agentType === 'approach' ? 'Strategic Approach' :
                          'Implementation Plan',
@@ -224,7 +240,7 @@ export const App: React.FC = () => {
               
               addMessage(finalMessage);
               setCurrentStreamingMessage(null);
-              setStatus('Plan ready');
+              setStatus('Intelligent analysis complete. Plan ready for execution.');
               setIsPlanComplete(true);
             }
           }, 100); // 100ms delay to ensure state updates are processed
