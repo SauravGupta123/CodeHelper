@@ -8,6 +8,7 @@ import { getWebviewContent } from "./generateWebView";
 import { parseSuggestions, parseAIResponse, cleanCodeBlock, parseAgentResponse, createStructuredBlocks } from "./utils/parsingFunctions";
 import { applyChangesToEditor, applySuggestionsAsComments } from './utils/ApplyFunctions';
 import { AgentOrchestrator } from './utils/AgentSystem';
+import { ToolTester } from './utils/TestTools';
 
 interface PlanStep {
   step: number;
@@ -31,6 +32,7 @@ interface AgentResponse {
 export function activate(context: vscode.ExtensionContext) {
 
 	context.secrets.store("gemini-api-key",process.env.GEMINI_API_KEY || "");
+  
   // Command: Set Gemini API Key
 
   // NEW COMMAND: Chat with AI -> opens chat UI without initial prompt
@@ -182,7 +184,42 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push( chatWithAI);
+  // NEW COMMAND: Test Tools
+  const testTools = vscode.commands.registerCommand(
+    'codeHelper.testTools',
+    async () => {
+      const toolTester = new ToolTester();
+      
+      // Show options to user
+      const option = await vscode.window.showQuickPick(
+        [
+          { label: '🚀 Run All Tests', description: 'Test all tools with default parameters' },
+          { label: '🎯 Custom Test', description: 'Test a specific tool with custom parameters' }
+        ],
+        {
+          placeHolder: 'Choose testing option',
+          matchOnDescription: true
+        }
+      );
+
+      if (!option) {
+        return;
+      }
+
+      try {
+        if (option.label.includes('Run All Tests')) {
+          await toolTester.runTests();
+          vscode.window.showInformationMessage('✅ All tool tests completed! Check the output channel for results.');
+        } else {
+          await toolTester.promptUserForCustomTest();
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Error running tests: ${error}`);
+      }
+    }
+  );
+
+  context.subscriptions.push(chatWithAI, testTools);
 }
 
 export function deactivate() {}
