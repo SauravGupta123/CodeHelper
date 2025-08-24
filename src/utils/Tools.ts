@@ -1,43 +1,47 @@
-import { tool } from "@langchain/core/tools";
-import { z } from "zod";
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 
-// Schema for codebase search tool
-const codebaseSearchSchema = z.object({
-  query: z.string().describe("The search query to find relevant files and code"),
-  context: z.string().optional().describe("Additional context about what to search for")
-});
+// Simple tool interface without LangChain dependencies
+export interface Tool {
+  name: string;
+  description: string;
+  invoke: (params: any) => Promise<string>;
+}
 
-// Schema for file content analysis tool
-const fileContentSchema = z.object({
-  filePath: z.string().describe("The path to the file to analyze"),
-  analysisType: z.enum(["structure", "content", "dependencies", "variables"]).describe("Type of analysis to perform")
-});
+// Schema validation using simple type checking
+interface CodebaseSearchParams {
+  query: string;
+  context?: string;
+}
 
-// Schema for project structure analysis tool
-const projectStructureSchema = z.object({
-  analysisDepth: z.enum(["shallow", "medium", "deep"]).describe("How deep to analyze the project structure")
-});
+interface FileContentParams {
+  filePath: string;
+  analysisType: "structure" | "content" | "dependencies" | "variables";
+}
 
-// Schema for variable search tool
-const variableSearchSchema = z.object({
-  variableName: z.string().describe("The name of the variable to search for"),
-  searchScope: z.enum(["current_file", "project_wide", "specific_directory"]).describe("Where to search for the variable")
-});
+interface ProjectStructureParams {
+  analysisDepth: "shallow" | "medium" | "deep";
+}
 
-// Schema for dependency analysis tool
-const dependencyAnalysisSchema = z.object({
-  filePath: z.string().describe("The file to analyze for dependencies"),
-  includeDevDependencies: z.boolean().optional().describe("Whether to include development dependencies")
-});
+interface VariableSearchParams {
+  variableName: string;
+  searchScope: "current_file" | "project_wide" | "specific_directory";
+}
+
+interface DependencyAnalysisParams {
+  filePath: string;
+  includeDevDependencies?: boolean;
+}
 
 // Tool: Search codebase for relevant files and code
-export const codebaseSearchTool = tool(
-  async (input: any) => {
+export const codebaseSearchTool: Tool = {
+  name: "codebase_search",
+  description: "Search the entire codebase for relevant files, code, or patterns. Use this to understand what already exists in the project before making changes.",
+  
+  async invoke(params: CodebaseSearchParams): Promise<string> {
     try {
-      const { query, context } = input as z.infer<typeof codebaseSearchSchema>;
+      const { query, context } = params;
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
         return "No workspace folders found. Please open a project in VS Code.";
@@ -89,19 +93,17 @@ export const codebaseSearchTool = tool(
     } catch (error) {
       return `Error searching codebase: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-  },
-  {
-    name: "codebase_search",
-    description: "Search the entire codebase for relevant files, code, or patterns. Use this to understand what already exists in the project before making changes.",
-    schema: codebaseSearchSchema,
   }
-);
+};
 
 // Tool: Analyze file content and structure
-export const fileContentAnalysisTool = tool(
-  async (input: any) => {
+export const fileContentAnalysisTool: Tool = {
+  name: "file_content_analysis",
+  description: "Analyze the content, structure, dependencies, or variables of a specific file. Use this to understand what a file contains before making changes.",
+  
+  async invoke(params: FileContentParams): Promise<string> {
     try {
-      const { filePath, analysisType } = input as z.infer<typeof fileContentSchema>;
+      const { filePath, analysisType } = params;
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
         return "No workspace folders found.";
@@ -152,19 +154,17 @@ export const fileContentAnalysisTool = tool(
     } catch (error) {
       return `Error analyzing file: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-  },
-  {
-    name: "file_content_analysis",
-    description: "Analyze the content, structure, dependencies, or variables of a specific file. Use this to understand what a file contains before making changes.",
-    schema: fileContentSchema,
   }
-);
+};
 
 // Tool: Analyze project structure
-export const projectStructureTool = tool(
-  async (input: any) => {
+export const projectStructureTool: Tool = {
+  name: "project_structure_analysis",
+  description: "Analyze the overall project structure to understand the codebase organization, file types, and directory layout.",
+  
+  async invoke(params: ProjectStructureParams): Promise<string> {
     try {
-      const { analysisDepth } = input as z.infer<typeof projectStructureSchema>;
+      const { analysisDepth } = params;
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
         return "No workspace folders found.";
@@ -213,19 +213,17 @@ export const projectStructureTool = tool(
     } catch (error) {
       return `Error analyzing project structure: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-  },
-  {
-    name: "project_structure_analysis",
-    description: "Analyze the overall project structure to understand the codebase organization, file types, and directory layout.",
-    schema: projectStructureSchema,
   }
-);
+};
 
 // Tool: Search for specific variables across the project
-export const variableSearchTool = tool(
-  async (input: any) => {
+export const variableSearchTool: Tool = {
+  name: "variable_search",
+  description: "Search for specific variables, constants, or identifiers across the project to understand where they are defined and used.",
+  
+  async invoke(params: VariableSearchParams): Promise<string> {
     try {
-      const { variableName, searchScope } = input as z.infer<typeof variableSearchSchema>;
+      const { variableName, searchScope } = params;
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
         return "No workspace folders found.";
@@ -289,19 +287,17 @@ export const variableSearchTool = tool(
     } catch (error) {
       return `Error searching for variable: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-  },
-  {
-    name: "variable_search",
-    description: "Search for specific variables, constants, or identifiers across the project to understand where they are defined and used.",
-    schema: variableSearchSchema,
   }
-);
+};
 
 // Tool: Analyze dependencies of a file
-export const dependencyAnalysisTool = tool(
-  async (input: any) => {
+export const dependencyAnalysisTool: Tool = {
+  name: "dependency_analysis",
+  description: "Analyze the dependencies, imports, and exports of a specific file, as well as project-level dependencies from package.json.",
+  
+  async invoke(params: DependencyAnalysisParams): Promise<string> {
     try {
-      const { filePath, includeDevDependencies = false } = input as z.infer<typeof dependencyAnalysisSchema>;
+      const { filePath, includeDevDependencies = false } = params;
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
         return "No workspace folders found.";
@@ -364,16 +360,11 @@ export const dependencyAnalysisTool = tool(
     } catch (error) {
       return `Error analyzing dependencies: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-  },
-  {
-    name: "dependency_analysis",
-    description: "Analyze the dependencies, imports, and exports of a specific file, as well as project-level dependencies from package.json.",
-    schema: dependencyAnalysisSchema,
   }
-);
+};
 
 // Export all tools for use in the agent system
-export const allTools = [
+export const allTools: Tool[] = [
   codebaseSearchTool,
   fileContentAnalysisTool,
   projectStructureTool,
