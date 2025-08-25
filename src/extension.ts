@@ -122,6 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
               // Get planResponse from the webview message
               const planResponse = message.planResponse;
+              const reviewType = message.reviewType; // Optional reviewType for code review tab
               if (!planResponse) {
                 vscode.window.showErrorMessage('No plan available. Please submit a request first.');
                 return;
@@ -156,7 +157,8 @@ export function activate(context: vscode.ExtensionContext) {
                 type: 'showGeneratedCode', 
                 originalCode: currentCode, 
                 newCode: cleaned,
-                isStreaming: true
+                isStreaming: true,
+                reviewType: reviewType
               });
             } catch (e: any) {
               console.error('Code generation failed:', e);
@@ -261,12 +263,32 @@ Please provide the improved code implementation.`;
                 type: 'showGeneratedCode', 
                 originalCode: currentCode, 
                 newCode: cleaned,
-                isStreaming: true
+                isStreaming: true,
+                reviewType: reviewType
               });
             } catch (e: any) {
               console.error('Code review implementation failed:', e);
               vscode.window.showErrorMessage('Code review implementation failed: ' + e.message);
               panel.webview.postMessage({ type: 'updateStatus', message: 'Code review implementation failed' });
+            }
+            break;
+          }
+          
+          case 'openCopilotChat': {
+            try {
+              const { prompt } = message;
+              if (!prompt) {
+                vscode.window.showErrorMessage('No prompt available for Copilot.');
+                return;
+              }
+              
+              // Open Copilot chat with the prompt
+              await vscode.commands.executeCommand('github.copilot.chat.open', prompt);
+              panel.webview.postMessage({ type: 'updateStatus', message: 'Copilot chat opened with prompt' });
+            } catch (e: any) {
+              console.error('Failed to open Copilot chat:', e);
+              vscode.window.showErrorMessage('Failed to open Copilot chat: ' + e.message);
+              panel.webview.postMessage({ type: 'updateStatus', message: 'Failed to open Copilot chat' });
             }
             break;
           }
