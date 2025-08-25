@@ -29,7 +29,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage }) => {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask CodeHelper about changes to the current file..."
-          className="flex-1 resize-none h-12 max-h-32 p-3 rounded-lg border border-vscode-border bg-vscode-bg text-vscode-text placeholder-vscode-muted focus:outline-none focus:ring-2 focus:ring-vscode-accent focus:border-transparent transition-all"
+          className="flex-1 resize-none h-12 max-h-32 p-3 rounded-lg border border-vscode-border bg-vscode-bg text-vscode-warn placeholder-vscode-muted focus:outline-none focus:ring-2 focus:ring-vscode-accent focus:border-transparent transition-all"
         />
         <button
           onClick={handleSend}
