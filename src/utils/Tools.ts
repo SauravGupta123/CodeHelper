@@ -174,14 +174,14 @@ export const projectStructureTool: Tool = {
       const structure: any = {};
       
       const scanDirectory = (dir: string, depth: number, maxDepth: number) => {
-        if (depth > maxDepth) return;
+        if (depth > maxDepth) {return;}
         
         try {
           const items = fs.readdirSync(dir);
           const result: any = {};
           
           for (const item of items) {
-            if (item.startsWith('.') || item === 'node_modules') continue;
+            if (item.startsWith('.') || item === 'node_modules') {continue;}
             
             const fullPath = path.join(dir, item);
             const stat = fs.statSync(fullPath);
