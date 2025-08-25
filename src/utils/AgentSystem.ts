@@ -479,7 +479,7 @@ export class PlanningAgent {
               role: "user",
               parts: [
                 {
-                  text: `You are an expert software engineer. Create a detailed implementation plan:
+                  text: `You are an expert software engineer. Create a detailed implementation plan. Dont give the full code itself. Only give the part of code where necessary. :
 
 File: ${fileName}
 User Request: ${prompt}
@@ -509,7 +509,7 @@ Task: Create a detailed, step-by-step implementation plan. Structure it as:
 ## Phase 2: [Phase Name]
 [Continue with more phases and steps...]
 
-Ensure each step is actionable, specific, and builds upon previous steps. Consider the existing codebase context to avoid duplication.`
+Ensure each step is actionable, specific, and builds upon previous steps. Consider the existing codebase context to avoid duplication. The plan should be clear enough for LLM to generate the exact same output according to the plan.`
                 },
               ],
             },
