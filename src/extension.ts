@@ -7,7 +7,7 @@ dotenv.config({ path: path.join(__dirname, "..", ".env") });
 import { getWebviewContent } from "./generateWebView";
 import { parseSuggestions, parseAIResponse, cleanCodeBlock, parseAgentResponse, createStructuredBlocks } from "./utils/parsingFunctions";
 import { applyChangesToEditor, applySuggestionsAsComments } from './utils/ApplyFunctions';
-import { AgentOrchestrator } from './utils/AgentSystem';
+import { AgentOrchestrator, CodeReviewAgent } from './utils/AgentSystem';
 import { ToolTester } from './utils/TestTools';
 
 interface PlanStep {
@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.secrets.store("gemini-api-key",process.env.GEMINI_API_KEY || "");
   
-  // Command: Set Gemini API Key
+
 
   // NEW COMMAND: Chat with AI -> opens chat UI without initial prompt
   const chatWithAI = vscode.commands.registerCommand(
@@ -72,7 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
         switch (message.type) {
           case 'userChatSubmit': {
             const prompt = message.prompt || '';
-            if (!prompt.trim()) return;
+            if (!prompt.trim()) {return;}
             console.log('Sending updateStatus message');
             panel.webview.postMessage({ type: 'updateStatus', message: 'Starting intelligent analysis with context gathering...' });
             try {
@@ -164,6 +164,112 @@ export function activate(context: vscode.ExtensionContext) {
             }
             break;
           }
+          case 'startCodeReview': {
+            if (!apiKey) {
+              vscode.window.showErrorMessage('No Gemini API key found. Please set your API key first.');
+              panel.webview.postMessage({ type: 'updateStatus', message: 'No API key available' });
+              return;
+            }
+            
+            if (!currentCode || currentCode.trim() === '') {
+              vscode.window.showErrorMessage('No code to analyze. Please open a file with code content.');
+              panel.webview.postMessage({ type: 'updateStatus', message: 'No code content to analyze' });
+              return;
+            }
+            
+            panel.webview.postMessage({ type: 'updateStatus', message: 'Starting code review analysis...' });
+            try {
+              console.log('Starting code review analysis...');
+              console.log('API key present:', !!apiKey);
+              console.log('Code length:', currentCode.length);
+              console.log('File name:', fileName);
+              
+              const codeReviewAgent = new CodeReviewAgent();
+              
+              const results = await codeReviewAgent.performCodeReview(
+                currentCode,
+                fileName,
+                apiKey
+              );
+              
+              console.log('Code review complete:', results);
+              panel.webview.postMessage({ 
+                type: 'codeReviewResults', 
+                results: results 
+              });
+            } catch (e: any) {
+              console.error('Code review failed:', e);
+              let errorMessage = 'Code review failed';
+              let statusMessage = 'Code review failed';
+              
+              if (e.message) {
+                if (e.message.includes('Invalid API key')) {
+                  errorMessage = 'Invalid Gemini API key. Please check your API key in the extension settings.';
+                  statusMessage = 'Invalid API key - check extension settings';
+                } else if (e.message.includes('Rate limit')) {
+                  errorMessage = 'API rate limit exceeded. Please try again in a few minutes.';
+                  statusMessage = 'Rate limit exceeded - try again later';
+                } else if (e.message.includes('server error')) {
+                  errorMessage = 'Gemini API server error. Please try again later.';
+                  statusMessage = 'API server error - try again later';
+                } else if (e.message.includes('timeout')) {
+                  errorMessage = 'Request timed out. Please try again.';
+                  statusMessage = 'Request timed out - try again';
+                } else {
+                  errorMessage = `Code review failed: ${e.message}`;
+                  statusMessage = `Failed: ${e.message}`;
+                }
+              }
+              
+              vscode.window.showErrorMessage(errorMessage);
+              panel.webview.postMessage({ type: 'updateStatus', message: statusMessage });
+            }
+            break;
+          }
+          
+          case 'executeCodeReviewPlan': {
+            panel.webview.postMessage({ type: 'updateStatus', message: "Generating code for code review improvements..." });
+            try {
+              const { reviewType, result } = message;
+              if (!result) {
+                vscode.window.showErrorMessage('No code review result available.');
+                return;
+              }
+              
+              console.log('Executing code review plan for:', reviewType, result);
+              
+              // Create a prompt for implementation based on the review result
+              const implementationPrompt = `Implement the following ${reviewType} improvements based on the code review:
+
+Issues Found:
+${result.issues.map((issue: string) => `- ${issue}`).join('\n')}
+
+Recommendations:
+${result.recommendations.map((rec: string) => `- ${rec}`).join('\n')}
+
+Steps to ${reviewType === 'bug' ? 'Handle' : reviewType === 'performance' ? 'Optimize' : reviewType === 'security' ? 'Secure' : 'Improve'}:
+${result.steps.map((step: string, index: number) => `${index + 1}. ${step}`).join('\n')}
+
+Please provide the improved code implementation.`;
+
+              const implementation = await callGeminiForImplementation(apiKey, currentCode, implementationPrompt, fileName, []);
+              const cleaned = cleanCodeBlock(implementation.newCode || '');
+              latestGeneratedCode = cleaned;
+              
+              panel.webview.postMessage({ 
+                type: 'showGeneratedCode', 
+                originalCode: currentCode, 
+                newCode: cleaned,
+                isStreaming: true
+              });
+            } catch (e: any) {
+              console.error('Code review implementation failed:', e);
+              vscode.window.showErrorMessage('Code review implementation failed: ' + e.message);
+              panel.webview.postMessage({ type: 'updateStatus', message: 'Code review implementation failed' });
+            }
+            break;
+          }
+          
           case 'applyChanges': {
             if (!latestGeneratedCode) {
               vscode.window.showErrorMessage('No generated code to apply yet. Execute the plan first.');
@@ -226,7 +332,7 @@ export function deactivate() {}
 
 // Helper to convert plan to text list for prompting
 function formatPlanForPrompt(plan: PlanStep[]): string {
-  if (!plan || plan.length === 0) return 'No plan provided.';
+  if (!plan || plan.length === 0) {return 'No plan provided.';}
   return plan.map((p) => `${p.step}. ${p.description}`).join('\n');
 }
 
