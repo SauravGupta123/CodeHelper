@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage } from './types';
+import { ChatMessage, CodeReviewResult } from './types';
 import { Header } from './components/Header';
 import { ChatMessages } from './components/ChatMessages';
 import { ChatInput } from './components/ChatInput';
+import { CodeReview } from './components/CodeReview';
+import { Tabs } from './components/Tabs';
 import { useVSCodeAPI } from './hooks/useVSCodeAPI';
 
 declare global {
@@ -20,6 +22,16 @@ export const App: React.FC = () => {
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState<ChatMessage | null>(null);
   const [isPlanComplete, setIsPlanComplete] = useState(false);
   const [planResponse, setPlanResponse] = useState<any>(null);
+  
+  // Code Review state
+  const [activeTab, setActiveTab] = useState<'plan' | 'codeReview'>('plan');
+  const [codeReviewResults, setCodeReviewResults] = useState<CodeReviewResult[]>([]);
+  const [isCodeReviewAnalyzing, setIsCodeReviewAnalyzing] = useState(false);
+  
+  const tabs = [
+    { id: 'plan', label: 'Plan' },
+    { id: 'codeReview', label: 'Code Review' }
+  ];
   
   // Use ref to track blocks immediately without waiting for state updates
   const streamingBlocksRef = useRef<Map<string, any>>(new Map());
@@ -60,6 +72,48 @@ export const App: React.FC = () => {
     streamingBlocksRef.current.clear();
     
     vscode.postMessage({ type: 'userChatSubmit', prompt: content });
+  };
+
+  const handleStartCodeReview = () => {
+    setIsCodeReviewAnalyzing(true);
+    setStatus('Starting code review analysis...');
+    vscode.postMessage({ type: 'startCodeReview' });
+  };
+
+  const handleExecuteCodeReviewPlan = (type: 'bug' | 'performance' | 'security' | 'clarity') => {
+    const result = codeReviewResults.find(r => r.type === type);
+    if (result) {
+      vscode.postMessage({ 
+        type: 'executeCodeReviewPlan', 
+        reviewType: type,
+        result: result
+      });
+      setStatus(`Generating code for ${type} improvements...`);
+    }
+  };
+
+  const handleGenerateWithCopilot = (type: 'bug' | 'performance' | 'security' | 'clarity') => {
+    const result = codeReviewResults.find(r => r.type === type);
+    if (result) {
+      // Format the plan for Copilot
+      const copilotPrompt = `Please help me implement the following ${type} improvements:
+
+Issues Found:
+${result.issues.map(issue => `- ${issue}`).join('\n')}
+
+Recommendations:
+${result.recommendations.map(rec => `- ${rec}`).join('\n')}
+
+Steps to ${type === 'bug' ? 'Handle' : type === 'performance' ? 'Optimize' : type === 'security' ? 'Secure' : 'Improve'}:
+${result.steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}
+
+Please provide the improved code implementation.`;
+      
+      // Copy to clipboard and show notification
+      navigator.clipboard.writeText(copilotPrompt).then(() => {
+        setStatus(`Copilot prompt copied to clipboard for ${type} improvements`);
+      });
+    }
   };
 
   // Listen for messages from the extension
@@ -263,6 +317,13 @@ export const App: React.FC = () => {
           addMessage(codeMessage);
           break;
           
+        case 'codeReviewResults':
+          console.log('Processing code review results:', message);
+          setStatus('Code review analysis complete');
+          setCodeReviewResults(message.results || []);
+          setIsCodeReviewAnalyzing(false);
+          break;
+          
         case 'updateStatus':
           console.log('Updating status:', message.message);
           setStatus(message.message || '');
@@ -281,40 +342,58 @@ export const App: React.FC = () => {
     <div className="h-screen flex flex-col bg-vscode-bg text-vscode-text">
       <Header status={status} />
       
-      <div 
-        ref={chatRef}
-        className="relative flex-1 overflow-y-auto"
-      >
-        <ChatMessages 
-          messages={messages} 
-          streamingMessage={currentStreamingMessage}
-          isPlanComplete={isPlanComplete}
-          onExecutePlan={() => {
-            if (currentStreamingMessage) {
-              console.error('Cannot execute plan while streaming is in progress');
-              setStatus("Please wait for plan generation to complete");
-              return;
-            }
-            
-            if (planResponse) {
-              console.log('Executing plan with response:', planResponse);
-              vscode.postMessage({ 
-                type: 'executePlan', 
-                planResponse: planResponse 
-              });
-              setStatus("Generating code...");
-            } else {
-              console.error('No planResponse available for execution');
-              setStatus("No plan available");
-            }
-          }}
-          onApplyChanges={() => {
-            vscode.postMessage({ type: 'applyChanges' });
-          }}
-        />
-      </div>
+      <Tabs 
+        tabs={tabs} 
+        activeTab={activeTab} 
+        onTabChange={(tabId) => setActiveTab(tabId as 'plan' | 'codeReview')} 
+      />
       
-      <ChatInput onSendMessage={handleSendMessage} />
+      {activeTab === 'plan' ? (
+        <>
+          <div 
+            ref={chatRef}
+            className="relative flex-1 overflow-y-auto"
+          >
+            <ChatMessages 
+              messages={messages} 
+              streamingMessage={currentStreamingMessage}
+              isPlanComplete={isPlanComplete}
+              onExecutePlan={() => {
+                if (currentStreamingMessage) {
+                  console.error('Cannot execute plan while streaming is in progress');
+                  setStatus("Please wait for plan generation to complete");
+                  return;
+                }
+                
+                if (planResponse) {
+                  console.log('Executing plan with response:', planResponse);
+                  vscode.postMessage({ 
+                    type: 'executePlan', 
+                    planResponse: planResponse 
+                  });
+                  setStatus("Generating code...");
+                } else {
+                  console.error('No planResponse available for execution');
+                  setStatus("No plan available");
+                }
+              }}
+              onApplyChanges={() => {
+                vscode.postMessage({ type: 'applyChanges' });
+              }}
+            />
+          </div>
+          
+          <ChatInput onSendMessage={handleSendMessage} />
+        </>
+      ) : (
+        <CodeReview
+          onStartAnalysis={handleStartCodeReview}
+          codeReviewResults={codeReviewResults}
+          isAnalyzing={isCodeReviewAnalyzing}
+          onExecutePlan={handleExecuteCodeReviewPlan}
+          onGenerateWithCopilot={handleGenerateWithCopilot}
+        />
+      )}
     </div>
   );
 };
