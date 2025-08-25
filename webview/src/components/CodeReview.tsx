@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CodeReviewType, CodeReviewResult, CodeReviewSection } from '../types';
+import { CodeReviewType, CodeReviewResult } from '../types';
 
 interface CodeReviewProps {
   onStartAnalysis: () => void;

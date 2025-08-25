@@ -7,7 +7,8 @@ dotenv.config({ path: path.join(__dirname, "..", ".env") });
 import { getWebviewContent } from "./generateWebView";
 import { parseSuggestions, parseAIResponse, cleanCodeBlock, parseAgentResponse, createStructuredBlocks } from "./utils/parsingFunctions";
 import { applyChangesToEditor, applySuggestionsAsComments } from './utils/ApplyFunctions';
-import { AgentOrchestrator, CodeReviewAgent } from './utils/AgentSystem';
+import { AgentOrchestrator } from './utils/AgentSystem';
+import { CodeReviewAgent } from './utils/CodeReviewAgents'; 
 import { ToolTester } from './utils/TestTools';
 
 interface PlanStep {
