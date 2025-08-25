@@ -281,14 +281,43 @@ Please provide the improved code implementation.`;
                 vscode.window.showErrorMessage('No prompt available for Copilot.');
                 return;
               }
-              
-              // Open Copilot chat with the prompt
-              await vscode.commands.executeCommand('github.copilot.chat.open', prompt);
-              panel.webview.postMessage({ type: 'updateStatus', message: 'Copilot chat opened with prompt' });
+
+              // Copy the prompt to clipboard first as a reliable fallback
+              await vscode.env.clipboard.writeText(prompt);
+
+              // Discover available commands and try to open Copilot Chat or its view
+              const allCommands = await vscode.commands.getCommands(true);
+              const candidateCommands = [
+                'github.copilot.chat.open',
+                'github.copilot.openPanel',
+                'github.copilot.toggleChat',
+                // Reveal Copilot Chat view (older IDs)
+                'workbench.view.extension.github-copilot-chat-view',
+                // Open generic Chat view as a last resort
+                'workbench.action.chat.openInSidebar',
+                'workbench.action.chat.open'
+              ];
+
+              const available = candidateCommands.find(cmd => allCommands.includes(cmd));
+
+              if (available) {
+                try {
+                  await vscode.commands.executeCommand(available);
+                  panel.webview.postMessage({ type: 'updateStatus', message: 'Copilot chat opened. Prompt copied to clipboard – paste to send.' });
+                  vscode.window.showInformationMessage('Copilot chat opened. Prompt is copied to your clipboard – paste it into Copilot chat.');
+                } catch (inner) {
+                  console.warn('Copilot open command failed, showing fallback:', inner);
+                  vscode.window.showInformationMessage('Could not auto-open Copilot chat. Prompt copied to clipboard; open Copilot chat and paste.');
+                  panel.webview.postMessage({ type: 'updateStatus', message: 'Prompt copied. Open Copilot chat and paste.' });
+                }
+              } else {
+                vscode.window.showWarningMessage('Copilot Chat command not found. Is GitHub Copilot Chat installed and enabled? The prompt is copied to your clipboard.');
+                panel.webview.postMessage({ type: 'updateStatus', message: 'Copilot command not found. Prompt copied to clipboard.' });
+              }
             } catch (e: any) {
-              console.error('Failed to open Copilot chat:', e);
-              vscode.window.showErrorMessage('Failed to open Copilot chat: ' + e.message);
-              panel.webview.postMessage({ type: 'updateStatus', message: 'Failed to open Copilot chat' });
+              console.error('Failed to handle Copilot chat request:', e);
+              vscode.window.showErrorMessage('Failed to open Copilot chat. Prompt has been copied to clipboard.');
+              panel.webview.postMessage({ type: 'updateStatus', message: 'Failed to open Copilot chat. Prompt copied to clipboard.' });
             }
             break;
           }
