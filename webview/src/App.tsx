@@ -109,10 +109,12 @@ ${result.steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}
 
 Please provide the improved code implementation.`;
       
-      // Copy to clipboard and show notification
-      navigator.clipboard.writeText(copilotPrompt).then(() => {
-        setStatus(`Copilot prompt copied to clipboard for ${type} improvements`);
+      // Open Copilot chat with the prompt
+      vscode.postMessage({ 
+        type: 'openCopilotChat', 
+        prompt: copilotPrompt 
       });
+      setStatus(`Opening Copilot chat for ${type} improvements...`);
     }
   };
 
@@ -314,7 +316,23 @@ Please provide the improved code implementation.`;
             timestamp: new Date(),
             generatedCode: message.newCode || ''
           };
-          addMessage(codeMessage);
+          
+          // Add the generated code message to the current tab
+          if (activeTab === 'codeReview' && message.reviewType) {
+            // For code review tab, add the message to the code review results
+            setCodeReviewResults(prev => prev.map(result => {
+              if (result.type === message.reviewType) {
+                return {
+                  ...result,
+                  generatedCode: message.newCode || ''
+                };
+              }
+              return result;
+            }));
+          } else {
+            // For plan tab, add to messages
+            addMessage(codeMessage);
+          }
           break;
           
         case 'codeReviewResults':
@@ -336,7 +354,7 @@ Please provide the improved code implementation.`;
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [currentStreamingMessage]);
+  }, [currentStreamingMessage, activeTab]);
 
   return (
     <div className="h-screen flex flex-col bg-vscode-bg text-vscode-text">
@@ -369,7 +387,7 @@ Please provide the improved code implementation.`;
                   console.log('Executing plan with response:', planResponse);
                   vscode.postMessage({ 
                     type: 'executePlan', 
-                    planResponse: planResponse 
+                    planResponse: planResponse
                   });
                   setStatus("Generating code...");
                 } else {

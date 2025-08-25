@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --vscode-bg: #1e1e1e;
+  --vscode-text: #d4d4d4;
+  --vscode-muted: #6a9955;
+  --vscode-border: #3c3c3c;
+  --vscode-accent: #007acc;
+  --vscode-success: #4ec9b0;
+  --vscode-surface: #252526;
+  --vscode-warn: #f39c12;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
