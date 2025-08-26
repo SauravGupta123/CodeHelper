@@ -479,7 +479,7 @@ export class PlanningAgent {
               role: "user",
               parts: [
                 {
-                  text: `You are an expert software engineer. Create a detailed implementation plan. Dont give the full code itself. Only give the part of code where necessary. :
+                  text: `You are an expert software engineer. Create a detailed implementation plan. Dont give the full code itself. Make sure to give plan that works for changes in the single file only for which the user has asked:
 
 File: ${fileName}
 User Request: ${prompt}
@@ -491,7 +491,7 @@ ${thinkingResult}
 
 Approach: ${approach}
 
-Task: Create a detailed, step-by-step implementation plan. Structure it as:
+Task: Create a detailed, step-by-step implementation plan.You have to only give the implemenation plan and not to mention about questions to be aksed by user in the implementaion step. Structure it as:
 
 # Implementation Plan
 
