@@ -4,7 +4,7 @@ import { CodeReviewResult } from '../Types';
 
 export class CodeReviewAgent {
     private tools: Tool[] = allTools;
-  
+    //this function will perform a comprehensive code review for bugs, performance, security, and clarity
     async performCodeReview(
       code: string,
       fileName: string,
