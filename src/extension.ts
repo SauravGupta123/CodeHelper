@@ -34,6 +34,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.secrets.store("gemini-api-key",process.env.GEMINI_API_KEY || "");
   
+  // Status Bar: quick launcher
+  const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusItem.text = "$(zap) CodeHelper";
+  statusItem.command = 'codeHelper.chatWithAI';
+  statusItem.tooltip = 'Open CodeHelper Chat';
+  statusItem.show();
+  context.subscriptions.push(statusItem);
 
 
   // NEW COMMAND: Chat with AI -> opens chat UI without initial prompt
@@ -147,6 +154,7 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage('No valid plan steps found. Please regenerate the plan.');
                 return;
               }
+              console.log('Plan steps for implementation:', planSteps); 
 
               const implementation = await callGeminiForImplementation(apiKey, currentCode, implementationPrompt, fileName, planSteps);
               const cleaned = cleanCodeBlock(implementation.newCode || '');
@@ -398,6 +406,7 @@ async function callGeminiForImplementation(
 ): Promise<AIResponse> {
   console.log("calling gemini for implementation with plan:::");  
   const planText = formatPlanForPrompt(plan);
+  console.log("Implementation plan:", planText);  
   const response = await axios.post(
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
     {
