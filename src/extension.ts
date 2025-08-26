@@ -73,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
       panel.webview.html =  getWebviewContent(panel, context.extensionUri);
       console.log("panal opened");
       let latestGeneratedCode: string = '';
-      let planResponse: AgentResponse | undefined;
+      // let planResponse: AgentResponse | undefined;
 
       panel.webview.onDidReceiveMessage(async (message) => {
         console.log('Extension received message:', message);
