@@ -1,11 +1,4 @@
 
-interface Suggestion {
-  oldCode: string;
-  newCode: string;
-  lineNumber: number;
-  explanation: string;
-}
-
 interface PlanStep {
   step: number;
   description: string;
@@ -18,13 +11,8 @@ interface AIResponse {
   explanation: string;
 }
 
-interface AgentResponse {
-  thinking: string;
-  observations: string[];
-  approach: string;
-  detailedPlan: string;
-}
 
+//It pulls out the content of a named section from a larger text.
 export function extractSection(text: string, sectionName: string): string {
   const regex = new RegExp(`${sectionName}:\\s*([\\s\\S]*?)(?=\\w+:|$)`);
   const match = text.match(regex);
