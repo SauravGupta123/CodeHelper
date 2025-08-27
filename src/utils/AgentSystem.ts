@@ -27,23 +27,19 @@ export class AgentOrchestrator {
     console.log('Starting streaming intelligent agentic loop');
     
     try {
-      // Step 1: Intelligent Analysis (this may take longer due to context gathering)
+      // Step 1: Intelligent Analysis with streaming iterations
       console.log('Starting intelligent analysis agent');
       onStreamingResponse({
         type: 'thinking',
-        content: 'Gathering codebase context and analyzing...',
+        content: 'Starting intelligent analysis with context gathering...',
         isComplete: false
       });
       
-      const thinking = await this.intelligentAnalysisAgent.analyzeCodeWithContext(
-        code, prompt, fileName, apiKey
+      const thinking = await this.intelligentAnalysisAgent.analyzeCodeWithContextStreaming(
+        code, prompt, fileName, apiKey, onStreamingResponse
       );
       
-      onStreamingResponse({
-        type: 'thinking',
-        content: thinking,
-        isComplete: true
-      });
+      // Note: The final thinking response is already sent by the streaming method
       console.log('Intelligent analysis complete');
 
       // Step 2: Enhanced Observations

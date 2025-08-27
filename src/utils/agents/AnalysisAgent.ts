@@ -1,6 +1,6 @@
 import axios from "axios";
 import { allTools, Tool } from '../Tools';
-import {ContextGatheringResult} from '../../Types';
+import {ContextGatheringResult, StreamingAgentResponse} from '../../Types';
 export class IntelligentAnalysisAgent {
   private tools: Tool[] = allTools;
   private maxThinkingIterations = 5;
@@ -41,6 +41,67 @@ export class IntelligentAnalysisAgent {
       return thinkingResult;
     } catch (error) {
       console.error('Error in intelligent analysis:', error);
+      return `Error during intelligent analysis: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  async analyzeCodeWithContextStreaming(
+    code: string, 
+    prompt: string, 
+    fileName: string, 
+    apiKey: string,
+    onStreamingResponse: (response: StreamingAgentResponse) => void
+  ): Promise<string> {
+    try {
+      console.log('Starting streaming intelligent analysis with context gathering...');
+      
+      // Step 1: Initial project structure analysis
+      onStreamingResponse({
+        type: 'thinking',
+        content: 'Analyzing project structure...',
+        isComplete: false
+      });
+      const projectStructure = await this.analyzeProjectStructure();
+      
+      // Step 2: Search for relevant existing code
+      onStreamingResponse({
+        type: 'thinking',
+        content: 'Searching for relevant existing code patterns...',
+        isComplete: false
+      });
+      const relevantFiles = await this.searchRelevantCode(prompt);
+      
+      // Step 3: Search for existing variables/constants
+      onStreamingResponse({
+        type: 'thinking',
+        content: 'Identifying existing variables and constants...',
+        isComplete: false
+      });
+      const existingVariables = await this.searchExistingVariables(prompt);
+      
+      // Step 4: Analyze dependencies
+      onStreamingResponse({
+        type: 'thinking',
+        content: 'Analyzing file and project dependencies...',
+        isComplete: false
+      });
+      const dependencies = await this.analyzeDependencies(fileName);
+      
+      // Step 5: Run thinking loop with gathered context and streaming
+      const thinkingResult = await this.runThinkingLoopStreaming(
+        code, prompt, fileName, apiKey, {
+          projectStructure,
+          relevantFiles,
+          existingVariables,
+          dependencies,
+          analysis: ''
+        },
+        onStreamingResponse
+      );
+      
+      return thinkingResult;
+    } catch (error) {
+      console.error('Error in streaming intelligent analysis:', error);
       return `Error during intelligent analysis: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
@@ -178,6 +239,112 @@ export class IntelligentAnalysisAgent {
     const finalThinking = await this.generateFinalThinkingSummary(
       thinkingProcess, currentContext, prompt, fileName
     );
+
+    return finalThinking;
+  }
+
+  private async runThinkingLoopStreaming(
+    code: string,
+    prompt: string,
+    fileName: string,
+    apiKey: string,
+    context: ContextGatheringResult,
+    onStreamingResponse: (response: StreamingAgentResponse) => void
+  ): Promise<string> {
+    let currentContext = context;
+    let thinkingIteration = 0;
+    let confidence = 0;
+    let thinkingProcess = '';
+    let accumulatedContent = '';
+
+    while (thinkingIteration < this.maxThinkingIterations && confidence < this.contextThreshold) {
+      console.log(`Thinking iteration ${thinkingIteration + 1}/${this.maxThinkingIterations}`);
+      
+      // Stream the iteration start
+      const iterationStart = `\n\n--- Starting Iteration ${thinkingIteration + 1} ---\n`;
+      accumulatedContent += iterationStart;
+      onStreamingResponse({
+        type: 'thinking',
+        content: accumulatedContent,
+        isComplete: false
+      });
+      
+      // Generate thinking prompt with current context
+      const thinkingPrompt = this.generateThinkingPrompt(
+        code, prompt, fileName, currentContext, thinkingIteration
+      );
+      
+      // Get AI response for this iteration
+      const aiResponse = await this.getAIThinkingResponse(thinkingPrompt, apiKey);
+      
+      // Stream the AI response for this iteration
+      const iterationAnalysis = `\n**Iteration ${thinkingIteration + 1} Analysis:**\n${aiResponse}\n`;
+      accumulatedContent += iterationAnalysis;
+      onStreamingResponse({
+        type: 'thinking',
+        content: accumulatedContent,
+        isComplete: false
+      });
+      
+      // Analyze if we need more context
+      const contextAnalysis = await this.analyzeContextGaps(aiResponse, currentContext);
+      
+      // Update thinking process
+      thinkingProcess += `\n\n--- Iteration ${thinkingIteration + 1} ---\n${aiResponse}`;
+      
+      if (contextAnalysis.needsMoreContext) {
+        // Stream that we have gathered enough context
+        const contextGathering = `\n*Gathering additional context...*\n`;
+        accumulatedContent += contextGathering;
+        onStreamingResponse({
+          type: 'thinking',
+          content: accumulatedContent,
+          isComplete: false
+        });
+        
+        // Gather additional context based on gaps
+        const additionalContext = await this.gatherAdditionalContext(contextAnalysis.gaps);
+        currentContext = this.mergeContext(currentContext, additionalContext);
+        confidence = contextAnalysis.confidence;
+      } else {
+        confidence = 1.0; // We have sufficient context
+        // Stream that we have sufficient context
+        const sufficientContext = `\n*I have gathered enough context regarding your codebase.*\n`;
+        accumulatedContent += sufficientContext;
+        onStreamingResponse({
+          type: 'thinking',
+          content: accumulatedContent,
+          isComplete: false
+        });
+      }
+      
+      thinkingIteration++;
+      
+      // Add a small delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Stream final thinking summary
+    const finalSummaryStart = `\n\n--- Generating Final Analysis Summary ---\n`;
+    accumulatedContent += finalSummaryStart;
+    onStreamingResponse({
+      type: 'thinking',
+      content: accumulatedContent,
+      isComplete: false
+    });
+
+    // Final thinking summary
+    const finalThinking = await this.generateFinalThinkingSummary(
+      thinkingProcess, currentContext, prompt, fileName
+    );
+
+    // Add final summary to accumulated content
+    const finalContent = accumulatedContent + `\n\n**Final Analysis Summary:**\n${finalThinking}`;
+    onStreamingResponse({
+      type: 'thinking',
+      content: finalContent,
+      isComplete: true
+    });
 
     return finalThinking;
   }
