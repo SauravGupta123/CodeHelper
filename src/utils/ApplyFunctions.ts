@@ -6,34 +6,6 @@ interface Suggestion {
   lineNumber: number;
   explanation: string;
 }
-export async function applySuggestionsAsComments(
-  editor: vscode.TextEditor,
-  suggestions: Suggestion[]
-) {
-  const edit = new vscode.WorkspaceEdit();
-
-  for (const suggestion of suggestions) {
-    if (!suggestion.lineNumber || suggestion.lineNumber < 1) {
-      suggestion.lineNumber = 1;
-    }
-
-    const position = new vscode.Position(suggestion.lineNumber - 1, 0);
-
-    const comment = [
-      `// --- AI Suggestion ---`,
-      `// Old Code:`,
-      ...suggestion.oldCode.split("\n").map((line) => "// " + line),
-      `// New Code:`,
-      ...suggestion.newCode.split("\n").map((line) => "// " + line),
-      `// Explanation: ${suggestion.explanation}`,
-      `// --- End Suggestion ---\n`,
-    ].join("\n");
-
-    edit.insert(editor.document.uri, position, comment + "\n");
-  }
-
-  await vscode.workspace.applyEdit(edit);
-}
 
 
 export async function applyChangesToEditor(editor: vscode.TextEditor, newCode: string): Promise<void> {

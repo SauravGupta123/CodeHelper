@@ -8,6 +8,7 @@ export interface ChatMessage {
   generatedCode?: string;
   structuredBlocks?: StructuredBlock[];
   isStreaming?: boolean;
+  codeReviewResults?: CodeReviewResult[];
 }
 
 export interface PlanStep {
@@ -50,4 +51,26 @@ export interface StreamingAgentResponse {
   content: string;
   isComplete: boolean;
   points?: string[];
+}
+
+export interface CodeReviewType {
+  type: 'bug' | 'performance' | 'security' | 'clarity';
+  label: string;
+  color: string;
+  description: string;
+}
+
+export interface CodeReviewResult {
+  type: 'bug' | 'performance' | 'security' | 'clarity';
+  hasIssues: boolean;
+  issues: string[];
+  recommendations: string[];
+  steps: string[];
+  generatedCode?: string;
+}
+
+export interface CodeReviewSection {
+  type: 'bug' | 'performance' | 'security' | 'clarity';
+  isExpanded: boolean;
+  result: CodeReviewResult;
 }

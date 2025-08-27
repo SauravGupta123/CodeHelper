@@ -10,15 +10,34 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:codeHelper.helloWorld",
-    "onCommand:codeHelper.analyzeCode",
-    "onCommand:codeHelper.setApiKey",
-    "onCommand:codeHelper.createWithAI",
     "onCommand:codeHelper.chatWithAI",
-    "onCommand:codeHelper.testTools"
+    "onView:codehelper.view"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codehelper",
+          "title": "CodeHelper",
+          "icon": "media/codehelper.png"
+        }
+      ]
+    },
+    "views": {
+      "codehelper": [
+        {
+          "id": "codehelper.view",
+          "name": "CodeHelper"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "codehelper.view",
+        "contents": "Welcome to CodeHelper!\n[Open CodeHelper Chat](command:codeHelper.chatWithAI)"
+      }
+    ],
     "commands": [
       {
         "command": "codeHelper.helloWorld",
