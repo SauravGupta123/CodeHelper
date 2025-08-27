@@ -29,7 +29,7 @@ export function getWebviewContent(panel: vscode.WebviewPanel, extensionUri: vsco
     html = html.replace(/src="\/assets\//g, `src="${distUri}/assets/`);
     html = html.replace(/href="\/assets\//g, `href="${distUri}/assets/`);
 
-    // More comprehensive CSP for React + Vite
+    // More comprehensive CSP(Content Security Policy) for React + Vite
     const csp = `
       default-src 'none';
       img-src ${panel.webview.cspSource} https: data: blob:;
