@@ -29,3 +29,32 @@ export interface AgentResponse {
     recommendations: string[];
     steps: string[];
   }
+
+
+
+//tool interfaces
+
+  // Schema validation using simple type checking
+  export  interface CodebaseSearchParams {
+    query: string;
+    context?: string;
+  }
+  
+  export interface FileContentParams {
+    filePath: string;
+    analysisType: "structure" | "content" | "dependencies" | "variables";
+  }
+  
+  export interface ProjectStructureParams {
+    analysisDepth: "shallow" | "medium" | "deep";
+  }
+  
+  export interface VariableSearchParams {
+    variableName: string;
+    searchScope: "current_file" | "project_wide" | "specific_directory";
+  }
+  
+  export interface DependencyAnalysisParams {
+    filePath: string;
+    includeDevDependencies?: boolean;
+  }
