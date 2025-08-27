@@ -1,39 +1,15 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import { CodebaseSearchParams,FileContentParams,ProjectStructureParams,DependencyAnalysisParams,VariableSearchParams}from '../Types'
 
-// Simple tool interface without LangChain dependencies
-export interface Tool {
-  name: string;
-  description: string;
-  invoke: (params: any) => Promise<string>;
-}
-
-// Schema validation using simple type checking
-interface CodebaseSearchParams {
-  query: string;
-  context?: string;
-}
-
-interface FileContentParams {
-  filePath: string;
-  analysisType: "structure" | "content" | "dependencies" | "variables";
-}
-
-interface ProjectStructureParams {
-  analysisDepth: "shallow" | "medium" | "deep";
-}
-
-interface VariableSearchParams {
-  variableName: string;
-  searchScope: "current_file" | "project_wide" | "specific_directory";
-}
-
-interface DependencyAnalysisParams {
-  filePath: string;
-  includeDevDependencies?: boolean;
-}
-
+//defined tool interface
+  export interface Tool {
+    name: string;
+    description: string;
+    invoke: (params: any) => Promise<string>;
+  }
+  
 // Tool: Search codebase for relevant files and code
 export const codebaseSearchTool: Tool = {
   name: "codebase_search",
@@ -132,9 +108,9 @@ export const fileContentAnalysisTool: Tool = {
           return `File structure analysis for ${filePath}:\n${JSON.stringify(structure, null, 2)}`;
           
         case "content":
-          const preview = lines.slice(0, 20).join('\n');
-          return `Content preview for ${filePath} (first 20 lines):\n${preview}`;
-          
+          const preview = lines.join('\n');
+          return `Content preview for ${filePath}:\n${preview}`;
+
         case "dependencies":
           const imports = lines.filter(line => line.trim().startsWith('import') || line.trim().startsWith('export'));
           return `Dependencies and exports in ${filePath}:\n${imports.join('\n')}`;
@@ -239,7 +215,7 @@ export const variableSearchTool: Tool = {
       
       const files = await vscode.workspace.findFiles(searchPattern, '**/node_modules/**');
       
-      for (const file of files.slice(0, 100)) { // Limit for performance
+      for (const file of files) { // Limit for performance
         try {
           const content = await vscode.workspace.fs.readFile(file);
           const text = Buffer.from(content).toString('utf8');
@@ -345,7 +321,7 @@ export const dependencyAnalysisTool: Tool = {
             devDependencies: includeDevDependencies ? (packageData.devDependencies || {}) : {}
           };
         } catch (error) {
-          // Ignore package.json parsing errors
+          projectDependencies = { error: 'Error reading package.json' };
         }
       }
       
