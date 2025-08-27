@@ -5,8 +5,8 @@ import path from "path";
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 import { getWebviewContent } from "./generateWebView";
-import { parseSuggestions, parseAIResponse, cleanCodeBlock, parseAgentResponse, createStructuredBlocks } from "./utils/parsingFunctions";
-import { applyChangesToEditor, applySuggestionsAsComments } from './utils/ApplyFunctions';
+import { parseAIResponse, cleanCodeBlock } from "./utils/parsingFunctions";
+import { applyChangesToEditor } from './utils/ApplyFunctions';
 import { AgentOrchestrator } from './utils/AgentSystem';
 import { CodeReviewAgent } from './utils/CodeReviewAgents'; 
 import { ToolTester } from './utils/TestTools';
@@ -23,12 +23,6 @@ interface AIResponse {
   explanation: string;
 }
 
-interface AgentResponse {
-  thinking: string;
-  observations: string[];
-  approach: string;
-  detailedPlan: string;
-}
 
 export function activate(context: vscode.ExtensionContext) {
 
