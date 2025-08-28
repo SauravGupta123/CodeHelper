@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { CodeReviewType, CodeReviewResult } from '../types';
-
 interface CodeReviewProps {
   onStartAnalysis: () => void;
   codeReviewResults?: CodeReviewResult[];
   isAnalyzing: boolean;
   onExecutePlan: (type: 'bug' | 'performance' | 'security' | 'clarity') => void;
   onGenerateWithCopilot: (type: 'bug' | 'performance' | 'security' | 'clarity') => void;
+  onApplyChanges: () => void; 
 }
 
 const codeReviewTypes: CodeReviewType[] = [
@@ -41,7 +41,8 @@ export const CodeReview: React.FC<CodeReviewProps> = ({
   codeReviewResults = [],
   isAnalyzing,
   onExecutePlan,
-  onGenerateWithCopilot
+  onGenerateWithCopilot,
+  onApplyChanges
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -289,12 +290,10 @@ export const CodeReview: React.FC<CodeReviewProps> = ({
                             </div>
                             <div className="mt-3 flex space-x-2">
                               <button
-                                onClick={() => {
-                                  navigator.clipboard.writeText(result.generatedCode || '');
-                                }}
-                                className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs font-medium transition-colors"
+                                onClick={onApplyChanges}
+                                className="px-4 py-2 bg-vscode-success text-white rounded-lg font-medium hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-vscode-success focus:ring-offset-2 focus:ring-offset-vscode-surface transition-all"
                               >
-                                Copy Code
+                               Apply Changes
                               </button>
                             </div>
                           </div>

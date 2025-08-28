@@ -410,6 +410,9 @@ Please provide the improved code implementation.`;
           isAnalyzing={isCodeReviewAnalyzing}
           onExecutePlan={handleExecuteCodeReviewPlan}
           onGenerateWithCopilot={handleGenerateWithCopilot}
+           onApplyChanges={() => {
+                vscode.postMessage({ type: 'applyChanges' });
+              }}
         />
       )}
     </div>
