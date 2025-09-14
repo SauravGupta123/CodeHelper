@@ -12,6 +12,9 @@
 - **📋 Dual Operation Modes**: Planning mode for new features and Code Review mode for analysis
 - **🎯 Iterative Thinking**: AI agents iterate through analysis until confident in their understanding
 
+### Demo Video:
+https://drive.google.com/file/d/19UrlMfy2pfjM6SMS7AcWea7TwsF7JbjA/view?usp=drive_link
+
 ## System Architecture & Flow
 
 ### Two Primary Modes
